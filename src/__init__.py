@@ -1,13 +1,13 @@
 bl_info = {
     'name': 'ASCII Scene Export',
     'description': 'Export ASE (ASCII Scene Export) files',
-    'author': 'Colin Basnett (Darklight Games',
+    'author': 'Colin Basnett (Darklight Games)',
     'version': (1, 0, 0),
     'blender': (2, 90, 0),
     'location': 'File > Import-Export',
     'warning': 'This add-on is under development.',
-    'wiki_url': 'https://github.com/cmbasnett/io_scene_ase/wiki',
-    'tracker_url': 'https://github.com/cmbasnett/io_scene_ase/issues',
+    'wiki_url': 'https://github.com/DarklightGames/io_scene_ase/wiki',
+    'tracker_url': 'https://github.com/DarklightGames/io_scene_ase/issues',
     'support': 'COMMUNITY',
     'category': 'Import-Export'
 }
@@ -27,10 +27,6 @@ from . import ase
 from . import builder
 from . import writer
 from . import exporter
-
-icons = [
-    # 'lambda',
-]
 
 classes = (
     exporter.ASE_OT_ExportOperator,

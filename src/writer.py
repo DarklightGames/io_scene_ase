@@ -125,7 +125,6 @@ class ASEWriter(object):
 
         for geometry_object in ase.geometry_objects:
             geomobject_node = root.add_command('GEOMOBJECT')
-
             geomobject_node.push_child('NODE_NAME').push_datum(geometry_object.name)
 
             mesh_node = geomobject_node.push_child('MESH')
