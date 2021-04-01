@@ -57,7 +57,7 @@ class ASEBuilder(object):
 
             mesh_data.calc_loop_triangles()
             mesh_data.calc_normals_split()
-            poly_groups, groups = mesh_data.calc_smooth_groups(use_bitflags=False)
+            poly_groups, groups = mesh_data.calc_smooth_groups(use_bitflags=True)
 
             # Faces
             for face_index, loop_triangle in enumerate(mesh_data.loop_triangles):
