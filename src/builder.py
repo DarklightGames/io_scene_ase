@@ -57,7 +57,7 @@ class ASEBuilder(object):
 
             mesh_data.calc_loop_triangles()
             mesh_data.calc_normals_split()
-            poly_groups, groups = mesh_data.calc_smooth_groups(use_bitflags=True)
+            poly_groups, groups = mesh_data.calc_smooth_groups(use_bitflags=False)
 
             # Faces
             for face_index, loop_triangle in enumerate(mesh_data.loop_triangles):
@@ -67,7 +67,9 @@ class ASEBuilder(object):
                 face.c = geometry_object.vertex_offset + mesh_data.loops[loop_triangle.loops[2]].vertex_index
                 if not geometry_object.is_collision:
                     face.material_index = material_indices[loop_triangle.material_index]
-                face.smoothing = poly_groups[loop_triangle.polygon_index]
+                # The UT2K4 importer only accepts 32 smoothing groups. Anything past this completely mangles the
+                # smoothing groups and effectively makes the whole model use sharp-edge rendering.
+                face.smoothing = (poly_groups[loop_triangle.polygon_index] - 1) % 32
                 geometry_object.faces.append(face)
 
             # Normals
