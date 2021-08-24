@@ -19,7 +19,7 @@ class ASE_OT_ExportOperator(bpy.types.Operator, bpy_extras.io_utils.ExportHelper
         maxlen=255,  # Max internal buffer length, longer would be hilighted.
     )
 
-    units = EnumProperty(
+    units: EnumProperty(
         items=(('M', 'Meters', ''),
                ('U', 'Unreal', '')),
         name='Units'
