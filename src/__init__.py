@@ -2,7 +2,7 @@ bl_info = {
     'name': 'ASCII Scene Export',
     'description': 'Export ASE (ASCII Scene Export) files',
     'author': 'Colin Basnett (Darklight Games)',
-    'version': (1, 0, 1),
+    'version': (1, 0, 2),
     'blender': (2, 90, 0),
     'location': 'File > Import-Export',
     'warning': 'This add-on is under development.',
