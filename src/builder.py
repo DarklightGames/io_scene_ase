@@ -37,7 +37,6 @@ class ASEBuilder(object):
             if not geometry_object.is_collision and len(mesh_data.materials) == 0:
                 raise ASEBuilderError(f'Mesh \'{obj.name}\' must have at least one material')
 
-            geometry_object.vertex_offset += len(geometry_object.vertices)
             vertex_transform = Matrix.Scale(options.scale, 4) @ Matrix.Rotation(math.pi, 4, 'Z') @ obj.matrix_world
             for vertex_index, vertex in enumerate(mesh_data.vertices):
                 geometry_object.vertices.append(vertex_transform @ vertex.co)
@@ -69,6 +68,11 @@ class ASEBuilder(object):
                     face.material_index = material_indices[loop_triangle.material_index]
                 # The UT2K4 importer only accepts 32 smoothing groups. Anything past this completely mangles the
                 # smoothing groups and effectively makes the whole model use sharp-edge rendering.
+                # The fix is to constrain the smoothing group between 0 and 31 by applying a modulo of 32 to the actual
+                # smoothing group index.
+                # This may result in bad calculated normals on export in rare cases. For example, if a face with a
+                # smoothing group of 3 is adjacent to a face with a smoothing group of 35 (35 % 32 == 3), those faces
+                # will be treated as part of the same smoothing group.
                 face.smoothing = (poly_groups[loop_triangle.polygon_index] - 1) % 32
                 geometry_object.faces.append(face)
 
@@ -88,7 +92,6 @@ class ASEBuilder(object):
             uv_layer = mesh_data.uv_layers.active.data
 
             # Texture Coordinates
-            geometry_object.texture_vertex_offset += len(geometry_object.texture_vertices)
             if not geometry_object.is_collision:
                 for loop_index, loop in enumerate(mesh_data.loops):
                     u, v = uv_layer[loop_index].uv
@@ -102,6 +105,10 @@ class ASEBuilder(object):
                         geometry_object.texture_vertex_offset + loop_triangle.loops[1],
                         geometry_object.texture_vertex_offset + loop_triangle.loops[2]
                     ))
+
+            # Update data offsets for next iteration
+            geometry_object.texture_vertex_offset = len(geometry_object.texture_vertices)
+            geometry_object.vertex_offset = len(geometry_object.vertices)
 
         if len(ase.geometry_objects) == 0:
             raise ASEBuilderError('At least one mesh object must be selected')
