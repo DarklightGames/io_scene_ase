@@ -89,13 +89,15 @@ class ASEBuilder(object):
                         face_normal.vertex_normals.append(vertex_normal)
                     geometry_object.face_normals.append(face_normal)
 
-            uv_layer = mesh_data.uv_layers.active.data
-
-            # Texture Coordinates
             if not geometry_object.is_collision:
-                for loop_index, loop in enumerate(mesh_data.loops):
-                    u, v = uv_layer[loop_index].uv
-                    geometry_object.texture_vertices.append((u, v, 0.0))
+                # Texture Coordinates
+                for i, uv_layer_data in enumerate([x.data for x in mesh_data.uv_layers]):
+                    if i >= len(geometry_object.uv_layers):
+                        geometry_object.uv_layers.append(ASEUVLayer())
+                    uv_layer = geometry_object.uv_layers[i]
+                    for loop_index, loop in enumerate(mesh_data.loops):
+                        u, v = uv_layer_data[loop_index].uv
+                        uv_layer.texture_vertices.append((u, v, 0.0))
 
             # Texture Faces
             if not geometry_object.is_collision:
@@ -107,7 +109,7 @@ class ASEBuilder(object):
                     ))
 
             # Update data offsets for next iteration
-            geometry_object.texture_vertex_offset = len(geometry_object.texture_vertices)
+            geometry_object.texture_vertex_offset = len(mesh_data.loops)
             geometry_object.vertex_offset = len(geometry_object.vertices)
 
         if len(ase.geometry_objects) == 0:

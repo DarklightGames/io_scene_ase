@@ -26,11 +26,16 @@ def is_collision_name(name):
     return name.startswith('MCDCX_')
 
 
+class ASEUVLayer(object):
+    def __init__(self):
+        self.texture_vertices = []
+
+
 class ASEGeometryObject(object):
     def __init__(self):
         self.name = ''
         self.vertices = []
-        self.texture_vertices = []
+        self.uv_layers = []
         self.faces = []
         self.texture_vertex_faces = []
         self.face_normals = []

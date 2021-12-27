@@ -146,21 +146,23 @@ class ASEWriter(object):
                 face_node.push_sub_command('MESH_MTLID').push_datum(face.material_index)
 
             # Texture Coordinates
-            if len(geometry_object.texture_vertices) > 0:
-                mesh_node.push_child('MESH_NUMTVERTEX').push_datum(len(geometry_object.texture_vertices))
-                tvertlist_node = mesh_node.push_child('MESH_TVERTLIST')
-                for tvert_index, tvert in enumerate(geometry_object.texture_vertices):
+            for i, uv_layer in enumerate(geometry_object.uv_layers):
+                parent_node = mesh_node if i == 0 else mesh_node.push_child('MESH_MAPPINGCHANNEL')
+                if i > 0:
+                    parent_node.push_datum(i + 1)
+                parent_node.push_child('MESH_NUMTVERTEX').push_datum(len(uv_layer.texture_vertices))
+                tvertlist_node = parent_node.push_child('MESH_TVERTLIST')
+                for tvert_index, tvert in enumerate(uv_layer.texture_vertices):
                     tvert_node = tvertlist_node.push_child('MESH_TVERT')
                     tvert_node.push_datum(tvert_index)
                     tvert_node.push_data(list(tvert))
-
-            # Texture Faces
-            if len(geometry_object.texture_vertex_faces) > 0:
-                mesh_node.push_child('MESH_NUMTVFACES').push_datum(len(geometry_object.texture_vertex_faces))
-                texture_faces_node = mesh_node.push_child('MESH_TFACELIST')
-                for texture_face_index, texture_face in enumerate(geometry_object.texture_vertex_faces):
-                    texture_face_node = texture_faces_node.push_child('MESH_TFACE')
-                    texture_face_node.push_data([texture_face_index] + list(texture_face))
+                # Texture Faces
+                if len(geometry_object.texture_vertex_faces) > 0:
+                    parent_node.push_child('MESH_NUMTVFACES').push_datum(len(geometry_object.texture_vertex_faces))
+                    texture_faces_node = parent_node.push_child('MESH_TFACELIST')
+                    for texture_face_index, texture_face in enumerate(geometry_object.texture_vertex_faces):
+                        texture_face_node = texture_faces_node.push_child('MESH_TFACE')
+                        texture_face_node.push_data([texture_face_index] + list(texture_face))
 
             # Normals
             if len(geometry_object.face_normals) > 0:
