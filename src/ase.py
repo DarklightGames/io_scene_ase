@@ -39,6 +39,7 @@ class ASEGeometryObject(object):
         self.faces = []
         self.texture_vertex_faces = []
         self.face_normals = []
+        self.vertex_colors = []
         self.vertex_offset = 0
         self.texture_vertex_offset = 0
 

@@ -176,6 +176,18 @@ class ASEWriter(object):
                         vertex_normal_node.push_datum(vertex_normal.vertex_index)
                         vertex_normal_node.push_data(list(vertex_normal.normal))
 
+            # Vertex Colors
+            if len(geometry_object.vertex_colors) > 0:
+                mesh_node.push_child('MESH_NUMCVERTEX').push_datum(len(geometry_object.vertex_colors))
+                cvert_list = mesh_node.push_child('MESH_CVERTLIST')
+                for i, vertex_color in enumerate(geometry_object.vertex_colors):
+                    cvert_list.push_child('MESH_VERTCOL').push_datum(i).push_data(vertex_color)
+                parent_node.push_child('MESH_NUMCVFACES').push_datum(len(geometry_object.texture_vertex_faces))
+                texture_faces_node = parent_node.push_child('MESH_CFACELIST')
+                for texture_face_index, texture_face in enumerate(geometry_object.texture_vertex_faces):
+                    texture_face_node = texture_faces_node.push_child('MESH_CFACE')
+                    texture_face_node.push_data([texture_face_index] + list(texture_face))
+
             geomobject_node.push_child('MATERIAL_REF').push_datum(0)
 
         return root

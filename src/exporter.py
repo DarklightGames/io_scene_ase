@@ -1,6 +1,6 @@
 import bpy
 import bpy_extras
-from bpy.props import StringProperty, FloatProperty, EnumProperty
+from bpy.props import StringProperty, FloatProperty, EnumProperty, BoolProperty
 from .builder import *
 from .writer import *
 
