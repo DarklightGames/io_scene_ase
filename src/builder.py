@@ -34,6 +34,15 @@ class ASEBuilder(object):
                     main_geometry_object = geometry_object
                 ase.geometry_objects.append(geometry_object)
 
+            if geometry_object.is_collision:
+                bm = bmesh.new()
+                bm.from_mesh(obj.data)
+                for edge in bm.edges:
+                    if not edge.is_manifold:
+                        raise ASEBuilderError(f'Collision mesh \'{obj.name}\' is not manifold')
+                    if not edge.is_convex:
+                        raise ASEBuilderError(f'Collision mesh \'{obj.name}\' is not convex')
+
             if not geometry_object.is_collision and len(mesh_data.materials) == 0:
                 raise ASEBuilderError(f'Mesh \'{obj.name}\' must have at least one material')
 
