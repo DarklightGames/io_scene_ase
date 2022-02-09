@@ -2,7 +2,7 @@ bl_info = {
     'name': 'ASCII Scene Export',
     'description': 'Export ASE (ASCII Scene Export) files',
     'author': 'Colin Basnett (Darklight Games)',
-    'version': (1, 1, 0),
+    'version': (1, 1, 2),
     'blender': (2, 90, 0),
     'location': 'File > Import-Export',
     'warning': 'This add-on is under development.',
@@ -21,8 +21,6 @@ if 'bpy' in locals():
 
 import bpy
 import bpy.utils.previews
-from bpy.props import IntProperty, CollectionProperty, StringProperty
-import os
 from . import ase
 from . import builder
 from . import writer
