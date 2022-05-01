@@ -35,6 +35,7 @@ class ASEBuilder(object):
                 ase.geometry_objects.append(geometry_object)
 
             if geometry_object.is_collision:
+                # Test that collision meshes are manifold and convex.
                 bm = bmesh.new()
                 bm.from_mesh(obj.data)
                 for edge in bm.edges:
@@ -85,8 +86,8 @@ class ASEBuilder(object):
                 face.smoothing = (poly_groups[loop_triangle.polygon_index] - 1) % 32
                 geometry_object.faces.append(face)
 
-            # Normals
             if not geometry_object.is_collision:
+                # Normals
                 for face_index, loop_triangle in enumerate(mesh_data.loop_triangles):
                     face_normal = ASEFaceNormal()
                     face_normal.normal = loop_triangle.normal
@@ -98,7 +99,6 @@ class ASEBuilder(object):
                         face_normal.vertex_normals.append(vertex_normal)
                     geometry_object.face_normals.append(face_normal)
 
-            if not geometry_object.is_collision:
                 # Texture Coordinates
                 for i, uv_layer_data in enumerate([x.data for x in mesh_data.uv_layers]):
                     if i >= len(geometry_object.uv_layers):
@@ -108,8 +108,7 @@ class ASEBuilder(object):
                         u, v = uv_layer_data[loop_index].uv
                         uv_layer.texture_vertices.append((u, v, 0.0))
 
-            # Texture Faces
-            if not geometry_object.is_collision:
+                # Texture Faces
                 for loop_triangle in mesh_data.loop_triangles:
                     geometry_object.texture_vertex_faces.append((
                         geometry_object.texture_vertex_offset + loop_triangle.loops[0],
@@ -117,11 +116,11 @@ class ASEBuilder(object):
                         geometry_object.texture_vertex_offset + loop_triangle.loops[2]
                     ))
 
-            # Vertex Colors
-            if len(mesh_data.vertex_colors) > 0:
-                vertex_colors = mesh_data.vertex_colors.active.data
-                for color in map(lambda x: x.color, vertex_colors):
-                    geometry_object.vertex_colors.append(tuple(color[0:3]))
+                # Vertex Colors
+                if len(mesh_data.vertex_colors) > 0:
+                    vertex_colors = mesh_data.vertex_colors.active.data
+                    for color in map(lambda x: x.color, vertex_colors):
+                        geometry_object.vertex_colors.append(tuple(color[0:3]))
 
             # Update data offsets for next iteration
             geometry_object.texture_vertex_offset = len(mesh_data.loops)
