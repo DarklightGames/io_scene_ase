@@ -24,6 +24,7 @@ class ASE_OT_ExportOperator(bpy.types.Operator, bpy_extras.io_utils.ExportHelper
                ('U', 'Unreal', '')),
         name='Units'
     )
+    use_raw_mesh_data: BoolProperty(default=False, name='Raw Mesh Data')
 
     units_scale = {
         'M': 60.352,
@@ -33,10 +34,12 @@ class ASE_OT_ExportOperator(bpy.types.Operator, bpy_extras.io_utils.ExportHelper
     def draw(self, context):
         layout = self.layout
         layout.prop(self, 'units', expand=False)
+        layout.prop(self, 'use_raw_mesh_data')
 
     def execute(self, context):
         options = ASEBuilderOptions()
         options.scale = self.units_scale[self.units]
+        options.use_raw_mesh_data = self.use_raw_mesh_data
         try:
             ase = ASEBuilder().build(context, options)
             ASEWriter().write(self.filepath, ase)
