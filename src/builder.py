@@ -38,8 +38,6 @@ class ASEBuilder(object):
                 mesh_object = bpy.data.objects.new('', mesh_data)
                 mesh_object.matrix_world = selected_object.matrix_world
 
-                # TODO: copy the materials
-
             if not is_collision_name(mesh_object.name) and main_geometry_object is not None:
                 geometry_object = main_geometry_object
             else:
