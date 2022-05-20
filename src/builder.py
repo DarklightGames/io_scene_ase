@@ -38,11 +38,11 @@ class ASEBuilder(object):
                 mesh_object = bpy.data.objects.new('', mesh_data)
                 mesh_object.matrix_world = selected_object.matrix_world
 
-            if not is_collision_name(mesh_object.name) and main_geometry_object is not None:
+            if not is_collision_name(selected_object.name) and main_geometry_object is not None:
                 geometry_object = main_geometry_object
             else:
                 geometry_object = ASEGeometryObject()
-                geometry_object.name = mesh_object.name
+                geometry_object.name = selected_object.name
                 if not geometry_object.is_collision:
                     main_geometry_object = geometry_object
                 ase.geometry_objects.append(geometry_object)
