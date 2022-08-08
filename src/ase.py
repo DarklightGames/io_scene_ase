@@ -52,4 +52,3 @@ class ASE(object):
     def __init__(self):
         self.materials = []
         self.geometry_objects = []
-

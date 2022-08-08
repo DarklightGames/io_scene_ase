@@ -10,19 +10,17 @@ class ASE_OT_ExportOperator(bpy.types.Operator, bpy_extras.io_utils.ExportHelper
     bl_label = 'Export ASE'
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
-
     filename_ext = '.ase'
-
     filter_glob: StringProperty(
         default="*.ase",
         options={'HIDDEN'},
         maxlen=255,  # Max internal buffer length, longer would be hilighted.
     )
-
     units: EnumProperty(
         items=(('M', 'Meters', ''),
                ('U', 'Unreal', '')),
-        name='Units'
+        name='Units',
+        default='U'
     )
     use_raw_mesh_data: BoolProperty(default=False, name='Raw Mesh Data')
 
@@ -43,7 +41,7 @@ class ASE_OT_ExportOperator(bpy.types.Operator, bpy_extras.io_utils.ExportHelper
         try:
             ase = ASEBuilder().build(context, options)
             ASEWriter().write(self.filepath, ase)
-            self.report({'INFO'}, 'ASE exported successful')
+            self.report({'INFO'}, 'ASE export successful')
             return {'FINISHED'}
         except ASEBuilderError as e:
             self.report({'ERROR'}, str(e))
