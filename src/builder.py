@@ -12,6 +12,7 @@ class ASEBuilderError(Exception):
 class ASEBuilderOptions(object):
     def __init__(self):
         self.scale = 1.0
+        self.use_raw_mesh_data = False
 
 
 class ASEBuilder(object):
@@ -19,17 +20,29 @@ class ASEBuilder(object):
         ase = ASE()
 
         main_geometry_object = None
-        for obj in context.selected_objects:
-            if obj is None or obj.type != 'MESH':
+        for selected_object in context.selected_objects:
+            if selected_object is None or selected_object.type != 'MESH':
                 continue
 
-            mesh_data = obj.data
+            # Evaluate the mesh after modifiers are applied
+            if options.use_raw_mesh_data:
+                mesh_object = selected_object
+                mesh_data = mesh_object.data
+            else:
+                depsgraph = context.evaluated_depsgraph_get()
+                bm = bmesh.new()
+                bm.from_object(selected_object, depsgraph)
+                mesh_data = bpy.data.meshes.new('')
+                bm.to_mesh(mesh_data)
+                del bm
+                mesh_object = bpy.data.objects.new('', mesh_data)
+                mesh_object.matrix_world = selected_object.matrix_world
 
-            if not is_collision_name(obj.name) and main_geometry_object is not None:
+            if not is_collision_name(selected_object.name) and main_geometry_object is not None:
                 geometry_object = main_geometry_object
             else:
                 geometry_object = ASEGeometryObject()
-                geometry_object.name = obj.name
+                geometry_object.name = selected_object.name
                 if not geometry_object.is_collision:
                     main_geometry_object = geometry_object
                 ase.geometry_objects.append(geometry_object)
@@ -37,25 +50,27 @@ class ASEBuilder(object):
             if geometry_object.is_collision:
                 # Test that collision meshes are manifold and convex.
                 bm = bmesh.new()
-                bm.from_mesh(obj.data)
+                bm.from_mesh(mesh_object.data)
                 for edge in bm.edges:
                     if not edge.is_manifold:
-                        raise ASEBuilderError(f'Collision mesh \'{obj.name}\' is not manifold')
+                        del bm
+                        raise ASEBuilderError(f'Collision mesh \'{selected_object.name}\' is not manifold')
                     if not edge.is_convex:
-                        raise ASEBuilderError(f'Collision mesh \'{obj.name}\' is not convex')
+                        del bm
+                        raise ASEBuilderError(f'Collision mesh \'{selected_object.name}\' is not convex')
 
-            if not geometry_object.is_collision and len(mesh_data.materials) == 0:
-                raise ASEBuilderError(f'Mesh \'{obj.name}\' must have at least one material')
+            if not geometry_object.is_collision and len(selected_object.data.materials) == 0:
+                raise ASEBuilderError(f'Mesh \'{selected_object.name}\' must have at least one material')
 
-            vertex_transform = Matrix.Scale(options.scale, 4) @ Matrix.Rotation(math.pi, 4, 'Z') @ obj.matrix_world
+            vertex_transform = Matrix.Scale(options.scale, 4) @ Matrix.Rotation(math.pi, 4, 'Z') @ mesh_object.matrix_world
             for vertex_index, vertex in enumerate(mesh_data.vertices):
                 geometry_object.vertices.append(vertex_transform @ vertex.co)
 
             material_indices = []
             if not geometry_object.is_collision:
-                for mesh_material_index, material in enumerate(mesh_data.materials):
+                for mesh_material_index, material in enumerate(selected_object.data.materials):
                     if material is None:
-                        raise ASEBuilderError(f'Material slot {mesh_material_index + 1} for mesh \'{obj.name}\' cannot be empty')
+                        raise ASEBuilderError(f'Material slot {mesh_material_index + 1} for mesh \'{selected_object.name}\' cannot be empty')
                     try:
                         # Reuse existing material entries for duplicates
                         material_index = ase.materials.index(material.name)
