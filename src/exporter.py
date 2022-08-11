@@ -10,22 +10,19 @@ class ASE_OT_ExportOperator(bpy.types.Operator, bpy_extras.io_utils.ExportHelper
     bl_label = 'Export ASE'
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
-
     filename_ext = '.ase'
-
     filter_glob: StringProperty(
         default="*.ase",
         options={'HIDDEN'},
         maxlen=255,  # Max internal buffer length, longer would be hilighted.
     )
-
     units: EnumProperty(
+        default='U',
         items=(('M', 'Meters', ''),
                ('U', 'Unreal', '')),
         name='Units'
     )
     use_raw_mesh_data: BoolProperty(default=False, name='Raw Mesh Data')
-
     units_scale = {
         'M': 60.352,
         'U': 1.0
