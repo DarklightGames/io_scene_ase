@@ -1,5 +1,5 @@
 bl_info = {
-    'name': 'ASCII Scene Export',
+    'name': 'ASCII Scene Export (ASE)',
     'description': 'Export ASE (ASCII Scene Export) files',
     'author': 'Colin Basnett (Darklight Games)',
     'version': (1, 2, 0),
