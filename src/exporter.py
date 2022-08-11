@@ -22,7 +22,10 @@ class ASE_OT_ExportOperator(bpy.types.Operator, bpy_extras.io_utils.ExportHelper
                ('U', 'Unreal', '')),
         name='Units'
     )
-    use_raw_mesh_data: BoolProperty(default=False, name='Raw Mesh Data')
+    use_raw_mesh_data: BoolProperty(
+        default=False,
+        description='No modifiers will be evaluated as part of the exported mesh',
+        name='Raw Mesh Data')
     units_scale = {
         'M': 60.352,
         'U': 1.0
