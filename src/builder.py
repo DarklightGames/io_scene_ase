@@ -138,7 +138,7 @@ class ASEBuilder(object):
                         geometry_object.vertex_colors.append(tuple(color[0:3]))
 
             # Update data offsets for next iteration
-            geometry_object.texture_vertex_offset = len(mesh_data.loops)
+            geometry_object.texture_vertex_offset += len(mesh_data.loops)
             geometry_object.vertex_offset = len(geometry_object.vertices)
 
         if len(ase.geometry_objects) == 0:
