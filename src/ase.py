@@ -1,4 +1,7 @@
-class ASEFace(object):
+from typing import List, Tuple
+
+
+class AseFace(object):
     def __init__(self):
         self.a = 0
         self.b = 0
@@ -10,46 +13,37 @@ class ASEFace(object):
         self.material_index = 0
 
 
-class ASEVertexNormal(object):
+class AseVertexNormal(object):
     def __init__(self):
         self.vertex_index = 0
         self.normal = (0.0, 0.0, 0.0)
 
 
-class ASEFaceNormal(object):
+class AseFaceNormal(object):
     def __init__(self):
         self.normal = (0.0, 0.0, 1.0)
-        self.vertex_normals = [ASEVertexNormal()] * 3
+        self.vertex_normals = [AseVertexNormal()] * 3
 
 
-def is_collision_name(name):
-    return name.startswith('MCDCX_')
-
-
-class ASEUVLayer(object):
+class AseUVLayer(object):
     def __init__(self):
-        self.texture_vertices = []
+        self.texture_vertices: List[Tuple[float, float, float]] = []
 
 
-class ASEGeometryObject(object):
+class AseGeometryObject(object):
     def __init__(self):
         self.name = ''
-        self.vertices = []
-        self.uv_layers = []
-        self.faces = []
+        self.vertices: List[Tuple[float, float, float]] = []
+        self.uv_layers: List[AseUVLayer] = []
+        self.faces: List[AseFace] = []
         self.texture_vertex_faces = []
-        self.face_normals = []
-        self.vertex_colors = []
+        self.face_normals: List[AseFaceNormal] = []
+        self.vertex_colors: List[Tuple[float, float, float]] = []
         self.vertex_offset = 0
         self.texture_vertex_offset = 0
 
-    @property
-    def is_collision(self):
-        return is_collision_name(self.name)
 
-
-class ASE(object):
+class Ase(object):
     def __init__(self):
-        self.materials = []
-        self.geometry_objects = []
-
+        self.materials: List[str] = []
+        self.geometry_objects: List[AseGeometryObject] = []

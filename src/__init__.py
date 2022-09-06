@@ -20,15 +20,13 @@ if 'bpy' in locals():
     if 'exporter'   in locals(): importlib.reload(exporter)
 
 import bpy
-import bpy.utils.previews
+from bpy.props import PointerProperty
 from . import ase
 from . import builder
 from . import writer
 from . import exporter
 
-classes = (
-    exporter.ASE_OT_ExportOperator,
-)
+classes = exporter.__classes__
 
 
 def menu_func_export(self, context):
@@ -41,8 +39,12 @@ def register():
 
     bpy.types.TOPBAR_MT_file_export.append(menu_func_export)
 
+    bpy.types.Scene.ase_export = PointerProperty(type=exporter.AseExportPropertyGroup)
+
 
 def unregister():
+    del bpy.types.Scene.ase_export
+
     bpy.types.TOPBAR_MT_file_export.remove(menu_func_export)
 
     for cls in classes:

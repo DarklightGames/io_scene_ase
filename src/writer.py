@@ -1,17 +1,22 @@
-from .ase import *
+from .ase import Ase
 
 
-class ASEFile(object):
+class AseWriterOptions(object):
+    def __init__(self):
+        self.should_use_sub_materials = True
+
+
+class AseFile(object):
     def __init__(self):
         self.commands = []
 
     def add_command(self, name):
-        command = ASECommand(name)
+        command = AseCommand(name)
         self.commands.append(command)
         return command
 
 
-class ASECommand(object):
+class AseCommand(object):
     def __init__(self, name):
         self.name = name
         self.data = []
@@ -39,17 +44,17 @@ class ASECommand(object):
         return self
 
     def push_sub_command(self, name):
-        command = ASECommand(name)
+        command = AseCommand(name)
         self.sub_commands.append(command)
         return command
 
     def push_child(self, name):
-        child = ASECommand(name)
+        child = AseCommand(name)
         self.children.append(child)
         return child
 
 
-class ASEWriter(object):
+class AseWriter(object):
 
     def __init__(self):
         self.fp = None
@@ -97,47 +102,77 @@ class ASEWriter(object):
         else:
             self.fp.write('\n')
 
-    def write_file(self, file: ASEFile):
+    def write_file(self, file: AseFile):
+        self.indent = 0
         for command in file.commands:
             self.write_command(command)
 
     @staticmethod
-    def build_ase_tree(ase) -> ASEFile:
-        root = ASEFile()
+    def build_ase_file(ase: Ase, options: AseWriterOptions) -> AseFile:
+        root = AseFile()
         root.add_command('3DSMAX_ASCIIEXPORT').push_datum(200)
 
         # Materials
         if len(ase.materials) > 0:
             material_list = root.add_command('MATERIAL_LIST')
             material_list.push_child('MATERIAL_COUNT').push_datum(len(ase.materials))
-            material_node = material_list.push_child('MATERIAL')
-            material_node.push_child('NUMSUBMTLS').push_datum(len(ase.materials))
-            for material_index, material in enumerate(ase.materials):
-                submaterial_node = material_node.push_child('SUBMATERIAL')
-                submaterial_node.push_datum(material_index)
-                submaterial_node.push_child('MATERIAL_NAME').push_datum(material)
-                diffuse_node = submaterial_node.push_child('MAP_DIFFUSE')
-                diffuse_node.push_child('MAP_NAME').push_datum('default')
-                diffuse_node.push_child('UVW_U_OFFSET').push_datum(0.0)
-                diffuse_node.push_child('UVW_V_OFFSET').push_datum(0.0)
-                diffuse_node.push_child('UVW_U_TILING').push_datum(1.0)
-                diffuse_node.push_child('UVW_V_TILING').push_datum(1.0)
+            if options.should_use_sub_materials:
+                material_node = material_list.push_child('MATERIAL')
+                material_node.push_child('NUMSUBMTLS').push_datum(len(ase.materials))
+                for material_index, material in enumerate(ase.materials):
+                    submaterial_node = material_node.push_child('SUBMATERIAL')
+                    submaterial_node.push_datum(material_index)
+                    submaterial_node.push_child('MATERIAL_NAME').push_datum(material)
+                    diffuse_node = submaterial_node.push_child('MAP_DIFFUSE')
+                    diffuse_node.push_child('MAP_NAME').push_datum('default')
+                    diffuse_node.push_child('UVW_U_OFFSET').push_datum(0.0)
+                    diffuse_node.push_child('UVW_V_OFFSET').push_datum(0.0)
+                    diffuse_node.push_child('UVW_U_TILING').push_datum(1.0)
+                    diffuse_node.push_child('UVW_V_TILING').push_datum(1.0)
+            else:
+                for material_index, material in enumerate(ase.materials):
+                    material_node = material_list.push_child('MATERIAL').push_datum(material_index)
+                    material_node.push_child('MATERIAL_NAME').push_datum(material)
+                    diffuse_node = material_node.push_child('MAP_DIFFUSE')
+                    diffuse_node.push_child('MAP_NAME').push_datum('default')
+                    diffuse_node.push_child('UVW_U_OFFSET').push_datum(0.0)
+                    diffuse_node.push_child('UVW_V_OFFSET').push_datum(0.0)
+                    diffuse_node.push_child('UVW_U_TILING').push_datum(1.0)
+                    diffuse_node.push_child('UVW_V_TILING').push_datum(1.0)
 
         for geometry_object in ase.geometry_objects:
             geomobject_node = root.add_command('GEOMOBJECT')
             geomobject_node.push_child('NODE_NAME').push_datum(geometry_object.name)
 
+            # TODO: only do this in T3D compatibility mode (or just do it always because it makes no difference?)
+            transform_node = geomobject_node.push_child('NODE_TM')
+            transform_node.push_child('NODE_NAME').push_datum(geometry_object.name)
+            transform_node.push_child('INHERIT_POS').push_data([0, 0, 0])
+            transform_node.push_child('INHERIT_ROT').push_data([0, 0, 0])
+            transform_node.push_child('INHERIT_SCL').push_data([0, 0, 0])
+            transform_node.push_child('TM_ROW0').push_data([1.0, 0.0, 0.0])
+            transform_node.push_child('TM_ROW1').push_data([0.0, 1.0, 0.0])
+            transform_node.push_child('TM_ROW2').push_data([0.0, 0.0, 1.0])
+            transform_node.push_child('TM_ROW3').push_data([0.0, 0.0, 0.0])
+            transform_node.push_child('TM_POS').push_data([0.0, 0.0, 0.0])
+            transform_node.push_child('TM_ROTAXIS').push_data([0.0, 0.0, 0.0])
+            transform_node.push_child('TM_ROTANGLE').push_datum(0.0)
+            transform_node.push_child('TM_SCALE').push_datum(0.0)
+            transform_node.push_child('TM_SCALEAXIS').push_data([0.0, 0.0, 0.0])
+            transform_node.push_child('TM_SCALEAXISANG').push_datum(0.0)
+
             mesh_node = geomobject_node.push_child('MESH')
 
-            # Vertices
             mesh_node.push_child('MESH_NUMVERTEX').push_datum(len(geometry_object.vertices))
+            mesh_node.push_child('MESH_NUMFACES').push_datum(len(geometry_object.faces))
+
+            # Vertices
             vertex_list_node = mesh_node.push_child('MESH_VERTEX_LIST')
             for vertex_index, vertex in enumerate(geometry_object.vertices):
                 mesh_vertex = vertex_list_node.push_child('MESH_VERTEX').push_datum(vertex_index)
                 mesh_vertex.push_data([x for x in vertex])
 
             # Faces
-            mesh_node.push_child('MESH_NUMFACES').push_datum(len(geometry_object.faces))
             faces_node = mesh_node.push_child('MESH_FACE_LIST')
             for face_index, face in enumerate(geometry_object.faces):
                 face_node = faces_node.push_child('MESH_FACE')
@@ -182,18 +217,20 @@ class ASEWriter(object):
                 cvert_list = mesh_node.push_child('MESH_CVERTLIST')
                 for i, vertex_color in enumerate(geometry_object.vertex_colors):
                     cvert_list.push_child('MESH_VERTCOL').push_datum(i).push_data(vertex_color)
-                parent_node.push_child('MESH_NUMCVFACES').push_datum(len(geometry_object.texture_vertex_faces))
-                texture_faces_node = parent_node.push_child('MESH_CFACELIST')
+                mesh_node.push_child('MESH_NUMCVFACES').push_datum(len(geometry_object.texture_vertex_faces))
+                texture_faces_node = mesh_node.push_child('MESH_CFACELIST')
                 for texture_face_index, texture_face in enumerate(geometry_object.texture_vertex_faces):
                     texture_face_node = texture_faces_node.push_child('MESH_CFACE')
                     texture_face_node.push_data([texture_face_index] + list(texture_face))
 
+            geomobject_node.push_child('PROP_MOTIONBLUR').push_datum(0)
+            geomobject_node.push_child('PROP_CASTSHADOW').push_datum(1)
+            geomobject_node.push_child('PROP_RECVSHADOW').push_datum(1)
             geomobject_node.push_child('MATERIAL_REF').push_datum(0)
 
         return root
 
-    def write(self, filepath, ase):
-        self.indent = 0
-        ase_file = self.build_ase_tree(ase)
+    def write(self, filepath, ase: Ase, options: AseWriterOptions):
+        ase_file = self.build_ase_file(ase, options)
         with open(filepath, 'w') as self.fp:
             self.write_file(ase_file)
