@@ -80,7 +80,7 @@ class ASEBuilder(object):
                     material_indices.append(material_index)
 
             mesh_data.calc_loop_triangles()
-            mesh_data.calc_normals_split()
+            
             poly_groups, groups = mesh_data.calc_smooth_groups(use_bitflags=False)
 
             # Faces
