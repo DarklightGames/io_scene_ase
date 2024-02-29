@@ -133,9 +133,10 @@ class ASEBuilder(object):
 
                 # Vertex Colors
                 if len(mesh_data.vertex_colors) > 0:
-                    vertex_colors = mesh_data.vertex_colors.active.data
-                    for color in map(lambda x: x.color, vertex_colors):
-                        geometry_object.vertex_colors.append(tuple(color[0:3]))
+                    if mesh_data.vertex_colors.active is not None:
+                        vertex_colors = mesh_data.vertex_colors.active.data
+                        for color in map(lambda x: x.color, vertex_colors):
+                            geometry_object.vertex_colors.append(tuple(color[0:3]))
 
             # Update data offsets for next iteration
             geometry_object.texture_vertex_offset += len(mesh_data.loops)
