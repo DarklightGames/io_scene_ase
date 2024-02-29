@@ -1,11 +1,11 @@
-import bpy
-import bpy_extras
-from bpy.props import StringProperty, FloatProperty, EnumProperty, BoolProperty
+from bpy_extras.io_utils import ExportHelper
+from bpy.props import StringProperty, EnumProperty, BoolProperty
+from bpy.types import Operator
 from .builder import *
 from .writer import *
 
 
-class ASE_OT_ExportOperator(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
+class ASE_OT_ExportOperator(Operator, ExportHelper):
     bl_idname = 'io_scene_ase.ase_export'  # important since its how bpy.ops.import_test.some_data is constructed
     bl_label = 'Export ASE'
     bl_space_type = 'PROPERTIES'
