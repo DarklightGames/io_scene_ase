@@ -28,11 +28,13 @@ from . import exporter
 
 classes = (
     exporter.ASE_OT_ExportOperator,
+    exporter.ASE_OT_ExportCollections,
 )
 
 
 def menu_func_export(self, context):
     self.layout.operator(exporter.ASE_OT_ExportOperator.bl_idname, text='ASCII Scene Export (.ase)')
+    self.layout.operator(exporter.ASE_OT_ExportCollections.bl_idname, text='ASCII Scene Export Collections (.ase)')
 
 
 def register():

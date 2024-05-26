@@ -1,3 +1,7 @@
+from typing import Iterable
+
+from bpy.types import Object
+
 from .ase import *
 import bpy
 import bmesh
@@ -16,11 +20,11 @@ class ASEBuilderOptions(object):
 
 
 class ASEBuilder(object):
-    def build(self, context, options: ASEBuilderOptions):
+    def build(self, context, options: ASEBuilderOptions, objects: Iterable[Object]):
         ase = ASE()
 
         main_geometry_object = None
-        for selected_object in context.selected_objects:
+        for selected_object in objects:
             if selected_object is None or selected_object.type != 'MESH':
                 continue
 
@@ -63,6 +67,7 @@ class ASEBuilder(object):
                 raise ASEBuilderError(f'Mesh \'{selected_object.name}\' must have at least one material')
 
             vertex_transform = Matrix.Scale(options.scale, 4) @ Matrix.Rotation(math.pi, 4, 'Z') @ mesh_object.matrix_world
+
             for vertex_index, vertex in enumerate(mesh_data.vertices):
                 geometry_object.vertices.append(vertex_transform @ vertex.co)
 
@@ -101,6 +106,16 @@ class ASEBuilder(object):
                 face.smoothing = (poly_groups[loop_triangle.polygon_index] - 1) % 32
                 geometry_object.faces.append(face)
 
+            # Figure out how many scaling axes are negative.
+            # This is important for calculating the normals of the mesh.
+            _, _, scale = vertex_transform.decompose()
+            negative_scaling_axes = sum([1 for x in scale if x < 0])
+            should_invert_normals = negative_scaling_axes % 2 == 1
+
+            if should_invert_normals:
+                for face in geometry_object.faces:
+                    face.a, face.c = face.c, face.a
+
             if not geometry_object.is_collision:
                 # Normals
                 for face_index, loop_triangle in enumerate(mesh_data.loop_triangles):
@@ -125,11 +140,18 @@ class ASEBuilder(object):
 
                 # Texture Faces
                 for loop_triangle in mesh_data.loop_triangles:
-                    geometry_object.texture_vertex_faces.append((
-                        geometry_object.texture_vertex_offset + loop_triangle.loops[0],
-                        geometry_object.texture_vertex_offset + loop_triangle.loops[1],
-                        geometry_object.texture_vertex_offset + loop_triangle.loops[2]
-                    ))
+                    if should_invert_normals:
+                        geometry_object.texture_vertex_faces.append((
+                            geometry_object.texture_vertex_offset + loop_triangle.loops[2],
+                            geometry_object.texture_vertex_offset + loop_triangle.loops[1],
+                            geometry_object.texture_vertex_offset + loop_triangle.loops[0]
+                        ))
+                    else:
+                        geometry_object.texture_vertex_faces.append((
+                            geometry_object.texture_vertex_offset + loop_triangle.loops[0],
+                            geometry_object.texture_vertex_offset + loop_triangle.loops[1],
+                            geometry_object.texture_vertex_offset + loop_triangle.loops[2]
+                        ))
 
                 # Vertex Colors
                 if len(mesh_data.vertex_colors) > 0:
