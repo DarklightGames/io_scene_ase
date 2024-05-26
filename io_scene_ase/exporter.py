@@ -95,7 +95,6 @@ class ASE_OT_ExportCollections(Operator, ExportHelper):
         context.window_manager.progress_begin(0, len(layer_collections))
 
         for i, collection in enumerate(collections):
-            print(type(collection), collection, collection.hide_viewport)
             # Iterate over all the objects in the collection.
             try:
                 ase = ASEBuilder().build(context, options, collection.objects)
