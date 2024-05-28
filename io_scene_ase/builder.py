@@ -1,13 +1,14 @@
 from typing import Iterable
 
-from bpy.types import Object
+from bpy.types import Object, Context
 
 from .ase import *
 import bpy
 import bmesh
 import math
-from mathutils import Matrix
+from mathutils import Matrix, Vector
 
+SMOOTHING_GROUP_MAX = 32
 
 class ASEBuilderError(Exception):
     pass
@@ -20,14 +21,15 @@ class ASEBuilderOptions(object):
 
 
 class ASEBuilder(object):
-    def build(self, context, options: ASEBuilderOptions, objects: Iterable[Object]):
+    def build(self, context: Context, options: ASEBuilderOptions, objects: Iterable[Object]):
         ase = ASE()
 
         main_geometry_object = None
-        for selected_object in objects:
-            if selected_object is None or selected_object.type != 'MESH':
-                continue
 
+        mesh_objects = [obj for obj in objects if obj.type == 'MESH']
+        context.window_manager.progress_begin(0, len(mesh_objects))
+
+        for object_index, selected_object in enumerate(mesh_objects):
             # Evaluate the mesh after modifiers are applied
             if options.use_raw_mesh_data:
                 mesh_object = selected_object
@@ -85,15 +87,22 @@ class ASEBuilder(object):
                     material_indices.append(material_index)
 
             mesh_data.calc_loop_triangles()
-            
+
+            # Calculate smoothing groups.
             poly_groups, groups = mesh_data.calc_smooth_groups(use_bitflags=False)
+
+            # Figure out how many scaling axes are negative.
+            # This is important for calculating the normals of the mesh.
+            _, _, scale = vertex_transform.decompose()
+            negative_scaling_axes = sum([1 for x in scale if x < 0])
+            should_invert_normals = negative_scaling_axes % 2 == 1
+
+            loop_triangle_index_order = (2, 1, 0) if should_invert_normals else (0, 1, 2)
 
             # Faces
             for face_index, loop_triangle in enumerate(mesh_data.loop_triangles):
                 face = ASEFace()
-                face.a = geometry_object.vertex_offset + mesh_data.loops[loop_triangle.loops[0]].vertex_index
-                face.b = geometry_object.vertex_offset + mesh_data.loops[loop_triangle.loops[1]].vertex_index
-                face.c = geometry_object.vertex_offset + mesh_data.loops[loop_triangle.loops[2]].vertex_index
+                face.a, face.b, face.c = map(lambda j: geometry_object.vertex_offset + mesh_data.loops[loop_triangle.loops[j]].vertex_index, loop_triangle_index_order)
                 if not geometry_object.is_collision:
                     face.material_index = material_indices[loop_triangle.material_index]
                 # The UT2K4 importer only accepts 32 smoothing groups. Anything past this completely mangles the
@@ -103,18 +112,8 @@ class ASEBuilder(object):
                 # This may result in bad calculated normals on export in rare cases. For example, if a face with a
                 # smoothing group of 3 is adjacent to a face with a smoothing group of 35 (35 % 32 == 3), those faces
                 # will be treated as part of the same smoothing group.
-                face.smoothing = (poly_groups[loop_triangle.polygon_index] - 1) % 32
+                face.smoothing = (poly_groups[loop_triangle.polygon_index] - 1) % SMOOTHING_GROUP_MAX
                 geometry_object.faces.append(face)
-
-            # Figure out how many scaling axes are negative.
-            # This is important for calculating the normals of the mesh.
-            _, _, scale = vertex_transform.decompose()
-            negative_scaling_axes = sum([1 for x in scale if x < 0])
-            should_invert_normals = negative_scaling_axes % 2 == 1
-
-            if should_invert_normals:
-                for face in geometry_object.faces:
-                    face.a, face.c = face.c, face.a
 
             if not geometry_object.is_collision:
                 # Normals
@@ -122,10 +121,12 @@ class ASEBuilder(object):
                     face_normal = ASEFaceNormal()
                     face_normal.normal = loop_triangle.normal
                     face_normal.vertex_normals = []
-                    for i in range(3):
+                    for i in loop_triangle_index_order:
                         vertex_normal = ASEVertexNormal()
                         vertex_normal.vertex_index = geometry_object.vertex_offset + mesh_data.loops[loop_triangle.loops[i]].vertex_index
                         vertex_normal.normal = loop_triangle.split_normals[i]
+                        if should_invert_normals:
+                            vertex_normal.normal = (-Vector(vertex_normal.normal)).to_tuple()
                         face_normal.vertex_normals.append(vertex_normal)
                     geometry_object.face_normals.append(face_normal)
 
@@ -140,18 +141,9 @@ class ASEBuilder(object):
 
                 # Texture Faces
                 for loop_triangle in mesh_data.loop_triangles:
-                    if should_invert_normals:
-                        geometry_object.texture_vertex_faces.append((
-                            geometry_object.texture_vertex_offset + loop_triangle.loops[2],
-                            geometry_object.texture_vertex_offset + loop_triangle.loops[1],
-                            geometry_object.texture_vertex_offset + loop_triangle.loops[0]
-                        ))
-                    else:
-                        geometry_object.texture_vertex_faces.append((
-                            geometry_object.texture_vertex_offset + loop_triangle.loops[0],
-                            geometry_object.texture_vertex_offset + loop_triangle.loops[1],
-                            geometry_object.texture_vertex_offset + loop_triangle.loops[2]
-                        ))
+                    geometry_object.texture_vertex_faces.append(
+                        tuple(map(lambda l: geometry_object.texture_vertex_offset + loop_triangle.loops[l], loop_triangle_index_order))
+                    )
 
                 # Vertex Colors
                 if len(mesh_data.vertex_colors) > 0:
@@ -163,6 +155,10 @@ class ASEBuilder(object):
             # Update data offsets for next iteration
             geometry_object.texture_vertex_offset += len(mesh_data.loops)
             geometry_object.vertex_offset = len(geometry_object.vertices)
+
+            context.window_manager.progress_update(object_index)
+
+        context.window_manager.progress_end()
 
         if len(ase.geometry_objects) == 0:
             raise ASEBuilderError('At least one mesh object must be selected')
