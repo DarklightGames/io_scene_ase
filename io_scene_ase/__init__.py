@@ -2,11 +2,9 @@ bl_info = {
     'name': 'ASCII Scene Export (ASE)',
     'description': 'Export ASE (ASCII Scene Export) files',
     'author': 'Colin Basnett (Darklight Games)',
-    'version': (2, 0, 0),
-    'blender': (4, 0, 0),
+    'version': (2, 1, 0),
+    'blender': (4, 1, 0),
     'location': 'File > Import-Export',
-    'warning': 'This add-on is under development.',
-    'wiki_url': 'https://github.com/DarklightGames/io_scene_ase/wiki',
     'tracker_url': 'https://github.com/DarklightGames/io_scene_ase/issues',
     'support': 'COMMUNITY',
     'category': 'Import-Export'
@@ -26,26 +24,27 @@ from . import builder
 from . import writer
 from . import exporter
 
-classes = (
-    exporter.ASE_OT_ExportOperator,
-    exporter.ASE_OT_ExportCollections,
-)
+classes = exporter.classes
 
 
 def menu_func_export(self, context):
-    self.layout.operator(exporter.ASE_OT_ExportOperator.bl_idname, text='ASCII Scene Export (.ase)')
-    self.layout.operator(exporter.ASE_OT_ExportCollections.bl_idname, text='ASCII Scene Export Collections (.ase)')
+    self.layout.operator(exporter.ASE_OT_export.bl_idname, text='ASCII Scene Export (.ase)')
+    self.layout.operator(exporter.ASE_OT_export_collections.bl_idname, text='ASCII Scene Export Collections (.ase)')
 
 
 def register():
     for cls in classes:
         bpy.utils.register_class(cls)
 
+    bpy.types.Scene.ase_export = bpy.props.PointerProperty(type=exporter.ASE_PG_export)
+
     bpy.types.TOPBAR_MT_file_export.append(menu_func_export)
 
 
 def unregister():
     bpy.types.TOPBAR_MT_file_export.remove(menu_func_export)
+
+    del bpy.types.Scene.ase_export
 
     for cls in classes:
         bpy.utils.unregister_class(cls)

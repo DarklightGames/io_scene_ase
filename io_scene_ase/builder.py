@@ -18,6 +18,7 @@ class ASEBuilderOptions(object):
     def __init__(self):
         self.scale = 1.0
         self.use_raw_mesh_data = False
+        self.materials = []
 
 
 class ASEBuilder(object):
@@ -28,6 +29,9 @@ class ASEBuilder(object):
 
         mesh_objects = [obj for obj in objects if obj.type == 'MESH']
         context.window_manager.progress_begin(0, len(mesh_objects))
+
+        for material in options.materials:
+            ase.materials.append(material)
 
         for object_index, selected_object in enumerate(mesh_objects):
             # Evaluate the mesh after modifiers are applied
@@ -78,13 +82,7 @@ class ASEBuilder(object):
                 for mesh_material_index, material in enumerate(selected_object.data.materials):
                     if material is None:
                         raise ASEBuilderError(f'Material slot {mesh_material_index + 1} for mesh \'{selected_object.name}\' cannot be empty')
-                    try:
-                        # Reuse existing material entries for duplicates
-                        material_index = ase.materials.index(material.name)
-                    except ValueError:
-                        material_index = len(ase.materials)
-                        ase.materials.append(material.name)
-                    material_indices.append(material_index)
+                    material_indices.append(ase.materials.index(material))
 
             mesh_data.calc_loop_triangles()
 
