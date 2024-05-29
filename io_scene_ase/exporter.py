@@ -17,18 +17,20 @@ class ASE_PG_export(PropertyGroup):
     material_list_index: IntProperty(name='Index', default=0)
 
 
-def populate_material_list(mesh_objects, material_list):
-    material_list.clear()
-
-    materials = []
+def get_unique_materials(mesh_objects: Iterable[Object]) -> List[Material]:
+    materials = set()
     for mesh_object in mesh_objects:
         for i, material_slot in enumerate(mesh_object.material_slots):
             material = material_slot.material
             if material is None:
                 raise RuntimeError('Material slot cannot be empty (index ' + str(i) + ')')
-            if material not in materials:
-                materials.append(material)
+            materials.add(material)
+    return list(materials)
 
+
+def populate_material_list(mesh_objects: Iterable[Object], material_list):
+    materials = get_unique_materials(mesh_objects)
+    material_list.clear()
     for index, material in enumerate(materials):
         m = material_list.add()
         m.material = material
@@ -107,7 +109,8 @@ class ASE_OT_export(Operator, ExportHelper):
             advanced_panel.prop(self, 'use_raw_mesh_data')
 
     def invoke(self, context: 'Context', event: 'Event' ) -> typing.Union[typing.Set[str], typing.Set[int]]:
-        mesh_objects = [x for x in context.selected_objects if x.type == 'MESH']
+        mesh_objects = [x[0] for x in get_mesh_objects(context.selected_objects)]
+
         pg = getattr(context.scene, 'ase_export')
         populate_material_list(mesh_objects, pg.material_list)
 
@@ -117,7 +120,6 @@ class ASE_OT_export(Operator, ExportHelper):
 
     def execute(self, context):
         options = ASEBuilderOptions()
-        options.scale = 1.0
         options.use_raw_mesh_data = self.use_raw_mesh_data
         pg = getattr(context.scene, 'ase_export')
         options.materials = [x.material for x in pg.material_list]
@@ -153,21 +155,27 @@ class ASE_OT_export_collections(Operator, ExportHelper):
 
     def execute(self, context):
         options = ASEBuilderOptions()
-        options.scale = 1.0
         options.use_raw_mesh_data = self.use_raw_mesh_data
 
         # Iterate over all the visible collections in the scene.
         layer_collections = context.view_layer.layer_collection.children
-        collections = [x.collection for x in layer_collections if not x.hide_viewport]
+        collections = [x.collection for x in layer_collections if not x.hide_viewport and not x.exclude]
 
         context.window_manager.progress_begin(0, len(layer_collections))
 
         for i, collection in enumerate(collections):
             # Iterate over all the objects in the collection.
+            mesh_objects = get_mesh_objects(collection.all_objects)
+            # Get all the materials used by the objects in the collection.
+            options.materials = get_unique_materials([x[0] for x in mesh_objects])
+
+            print(collection, options.materials)
+
             try:
-                ase = ASEBuilder().build(context, options, collection.objects)
+                ase = ASEBuilder().build(context, options, collection.all_objects)
                 dirname = os.path.dirname(self.filepath)
-                ASEWriter().write(os.path.join(dirname, collection.name + '.ase'), ase)
+                filepath = os.path.join(dirname, collection.name + '.ase')
+                ASEWriter().write(filepath, ase)
             except ASEBuilderError as e:
                 self.report({'ERROR'}, str(e))
                 return {'CANCELLED'}

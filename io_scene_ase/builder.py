@@ -1,6 +1,6 @@
-from typing import Iterable
+from typing import Iterable, Optional, List, Tuple
 
-from bpy.types import Object, Context
+from bpy.types import Object, Context, Material
 
 from .ase import *
 import bpy
@@ -16,9 +16,28 @@ class ASEBuilderError(Exception):
 
 class ASEBuilderOptions(object):
     def __init__(self):
-        self.scale = 1.0
         self.use_raw_mesh_data = False
-        self.materials = []
+        self.materials: Optional[List[Material]] = None
+
+
+def get_object_matrix(obj: Object, asset_instance: Optional[Object] = None) -> Matrix:
+    if asset_instance is not None:
+        return asset_instance.matrix_world @ Matrix().Translation(asset_instance.instance_collection.instance_offset) @ obj.matrix_local
+    return obj.matrix_world
+
+
+def get_mesh_objects(objects: Iterable[Object]) -> List[Tuple[Object, Optional[Object]]]:
+    mesh_objects = []
+    for obj in objects:
+        if obj.type == 'MESH':
+            mesh_objects.append((obj, None))
+        elif obj.instance_collection:
+            # TODO: This probably needs to recurse.
+            for instance_object in obj.instance_collection.all_objects:
+                if instance_object.type == 'MESH':
+                    mesh_objects.append((instance_object, obj))
+    return mesh_objects
+
 
 
 class ASEBuilder(object):
@@ -26,33 +45,35 @@ class ASEBuilder(object):
         ase = ASE()
 
         main_geometry_object = None
+        mesh_objects = get_mesh_objects(objects)
 
-        mesh_objects = [obj for obj in objects if obj.type == 'MESH']
         context.window_manager.progress_begin(0, len(mesh_objects))
 
-        for material in options.materials:
-            ase.materials.append(material)
+        ase.materials = options.materials
 
-        for object_index, selected_object in enumerate(mesh_objects):
+        for object_index, (obj, asset_instance) in enumerate(mesh_objects):
+
+            matrix_world = get_object_matrix(obj, asset_instance)
+
             # Evaluate the mesh after modifiers are applied
             if options.use_raw_mesh_data:
-                mesh_object = selected_object
+                mesh_object = obj
                 mesh_data = mesh_object.data
             else:
                 depsgraph = context.evaluated_depsgraph_get()
                 bm = bmesh.new()
-                bm.from_object(selected_object, depsgraph)
+                bm.from_object(obj, depsgraph)
                 mesh_data = bpy.data.meshes.new('')
                 bm.to_mesh(mesh_data)
                 del bm
                 mesh_object = bpy.data.objects.new('', mesh_data)
-                mesh_object.matrix_world = selected_object.matrix_world
+                mesh_object.matrix_world = matrix_world
 
-            if not is_collision_name(selected_object.name) and main_geometry_object is not None:
+            if not is_collision_name(obj.name) and main_geometry_object is not None:
                 geometry_object = main_geometry_object
             else:
                 geometry_object = ASEGeometryObject()
-                geometry_object.name = selected_object.name
+                geometry_object.name = obj.name
                 if not geometry_object.is_collision:
                     main_geometry_object = geometry_object
                 ase.geometry_objects.append(geometry_object)
@@ -64,24 +85,24 @@ class ASEBuilder(object):
                 for edge in bm.edges:
                     if not edge.is_manifold:
                         del bm
-                        raise ASEBuilderError(f'Collision mesh \'{selected_object.name}\' is not manifold')
+                        raise ASEBuilderError(f'Collision mesh \'{obj.name}\' is not manifold')
                     if not edge.is_convex:
                         del bm
-                        raise ASEBuilderError(f'Collision mesh \'{selected_object.name}\' is not convex')
+                        raise ASEBuilderError(f'Collision mesh \'{obj.name}\' is not convex')
 
-            if not geometry_object.is_collision and len(selected_object.data.materials) == 0:
-                raise ASEBuilderError(f'Mesh \'{selected_object.name}\' must have at least one material')
+            if not geometry_object.is_collision and len(obj.data.materials) == 0:
+                raise ASEBuilderError(f'Mesh \'{obj.name}\' must have at least one material')
 
-            vertex_transform = Matrix.Scale(options.scale, 4) @ Matrix.Rotation(math.pi, 4, 'Z') @ mesh_object.matrix_world
+            vertex_transform = Matrix.Rotation(math.pi, 4, 'Z') @ matrix_world
 
             for vertex_index, vertex in enumerate(mesh_data.vertices):
                 geometry_object.vertices.append(vertex_transform @ vertex.co)
 
             material_indices = []
             if not geometry_object.is_collision:
-                for mesh_material_index, material in enumerate(selected_object.data.materials):
+                for mesh_material_index, material in enumerate(obj.data.materials):
                     if material is None:
-                        raise ASEBuilderError(f'Material slot {mesh_material_index + 1} for mesh \'{selected_object.name}\' cannot be empty')
+                        raise ASEBuilderError(f'Material slot {mesh_material_index + 1} for mesh \'{obj.name}\' cannot be empty')
                     material_indices.append(ase.materials.index(material))
 
             mesh_data.calc_loop_triangles()
