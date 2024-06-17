@@ -1,15 +1,3 @@
-bl_info = {
-    'name': 'ASCII Scene Export (ASE)',
-    'description': 'Export ASE (ASCII Scene Export) files',
-    'author': 'Colin Basnett (Darklight Games)',
-    'version': (2, 1, 0),
-    'blender': (4, 1, 0),
-    'location': 'File > Import-Export',
-    'tracker_url': 'https://github.com/DarklightGames/io_scene_ase/issues',
-    'support': 'COMMUNITY',
-    'category': 'Import-Export'
-}
-
 if 'bpy' in locals():
     import importlib
     if 'ase'        in locals(): importlib.reload(ase)

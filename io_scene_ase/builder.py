@@ -2,7 +2,7 @@ from typing import Iterable, Optional, List, Tuple
 
 from bpy.types import Object, Context, Material
 
-from .ase import *
+from .ase import ASE, ASEGeometryObject, ASEFace, ASEFaceNormal, ASEVertexNormal, ASEUVLayer, is_collision_name
 import bpy
 import bmesh
 import math

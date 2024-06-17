@@ -1,11 +1,11 @@
 import os.path
-import typing
+from typing import Iterable, List, Set, Union
 
 from bpy_extras.io_utils import ExportHelper
 from bpy.props import StringProperty, BoolProperty, CollectionProperty, PointerProperty, IntProperty
-from bpy.types import Operator, Material, PropertyGroup, UIList
-from .builder import *
-from .writer import *
+from bpy.types import Operator, Material, PropertyGroup, UIList, Object
+from .builder import ASEBuilder, ASEBuilderOptions, ASEBuilderError, get_mesh_objects
+from .writer import ASEWriter
 
 
 class ASE_PG_material(PropertyGroup):
@@ -108,7 +108,7 @@ class ASE_OT_export(Operator, ExportHelper):
         if advanced_panel:
             advanced_panel.prop(self, 'use_raw_mesh_data')
 
-    def invoke(self, context: 'Context', event: 'Event' ) -> typing.Union[typing.Set[str], typing.Set[int]]:
+    def invoke(self, context: 'Context', event: 'Event' ) -> Union[Set[str], Set[int]]:
         mesh_objects = [x[0] for x in get_mesh_objects(context.selected_objects)]
 
         pg = getattr(context.scene, 'ase_export')
@@ -134,7 +134,7 @@ class ASE_OT_export(Operator, ExportHelper):
 
 
 class ASE_OT_export_collections(Operator, ExportHelper):
-    bl_idname = 'io_scene_ase.ase_export_collections'  # important since its how bpy.ops.import_test.some_data is constructed
+    bl_idname = 'io_scene_ase.ase_export_collections'
     bl_label = 'Export Collections to ASE'
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
@@ -168,8 +168,6 @@ class ASE_OT_export_collections(Operator, ExportHelper):
             mesh_objects = get_mesh_objects(collection.all_objects)
             # Get all the materials used by the objects in the collection.
             options.materials = get_unique_materials([x[0] for x in mesh_objects])
-
-            print(collection, options.materials)
 
             try:
                 ase = ASEBuilder().build(context, options, collection.all_objects)

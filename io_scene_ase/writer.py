@@ -1,6 +1,3 @@
-from .ase import *
-
-
 class ASEFile(object):
     def __init__(self):
         self.commands = []
