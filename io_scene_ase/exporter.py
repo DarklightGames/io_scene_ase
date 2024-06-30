@@ -85,6 +85,7 @@ class ASE_OT_export(Operator, ExportHelper):
     bl_label = 'Export ASE'
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
+    bl_description = 'Export selected objects to ASE'
     filename_ext = '.ase'
     filter_glob: StringProperty(default="*.ase", options={'HIDDEN'}, maxlen=255)
     use_raw_mesh_data: BoolProperty(default=False, name='Raw Mesh Data', description='No modifiers will be evaluated as part of the exported mesh')
@@ -126,7 +127,7 @@ class ASE_OT_export(Operator, ExportHelper):
         try:
             ase = ASEBuilder().build(context, options, context.selected_objects)
             ASEWriter().write(self.filepath, ase)
-            self.report({'INFO'}, 'ASE exported successful')
+            self.report({'INFO'}, 'ASE exported successfully')
             return {'FINISHED'}
         except ASEBuilderError as e:
             self.report({'ERROR'}, str(e))
@@ -138,6 +139,7 @@ class ASE_OT_export_collections(Operator, ExportHelper):
     bl_label = 'Export Collections to ASE'
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
+    bl_description = 'Batch export collections to ASE. The name of the collection will be used as the filename'
     filename_ext = '.ase'
     filter_glob: StringProperty(
         default="*.ase",

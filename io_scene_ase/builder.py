@@ -32,7 +32,6 @@ def get_mesh_objects(objects: Iterable[Object]) -> List[Tuple[Object, Optional[O
         if obj.type == 'MESH':
             mesh_objects.append((obj, None))
         elif obj.instance_collection:
-            # TODO: This probably needs to recurse.
             for instance_object in obj.instance_collection.all_objects:
                 if instance_object.type == 'MESH':
                     mesh_objects.append((instance_object, obj))
