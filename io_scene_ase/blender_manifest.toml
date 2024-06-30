@@ -2,7 +2,7 @@ schema_version = "1.0.0"
 id = "io_scene_ase"
 version = "2.1.0"
 name = "ASCII Scene Export (.ase)"
-tagline = "Import and export PSK and PSA files used in Unreal Engine"
+tagline = "Export .ase files used in Unreal Engine 1 & 2"
 maintainer = "Colin Basnett <cmbasnett@gmail.com>"
 type = "add-on"
 website = "https://github.com/DarklightGames/io_scene_ase/"
@@ -24,4 +24,4 @@ paths_exclude_pattern = [
 ]
 
 [permissions]
-files = "Import/export ASE files from/to disk"
+files = "Export ASE files to disk"
