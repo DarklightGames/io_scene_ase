@@ -1,0 +1,49 @@
+name: Build Extension
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+    
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      BLENDER_VERSION: blender-4.2.0-beta+v42.603b833fe3cb-linux.x86_64-release
+      ADDON_NAME: io_scene_ase
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set derived environment variables
+        run: |
+          echo "BLENDER_FILENAME=${{ env.BLENDER_VERSION }}.tar.xz" >> $GITHUB_ENV
+          echo "BLENDER_URL=https://cdn.builder.blender.org/download/daily/${{ env.BLENDER_VERSION }}.tar.xz" >> $GITHUB_ENV
+      - name: Install Blender Dependencies
+        run: |
+          sudo apt-get install libxxf86vm-dev -y
+          sudo apt-get install libxfixes3 -y
+          sudo apt-get install libxi-dev -y
+          sudo apt-get install libxkbcommon-x11-0 -y
+          sudo apt-get install libgl1-mesa-glx -y
+      - name: Download & Extract Blender
+        run: |
+          wget -q $BLENDER_URL
+          tar -xf $BLENDER_FILENAME
+          rm -rf $BLENDER_FILENAME
+      - name: Add Blender executable to path
+        run: |
+          echo "${{ github.workspace }}/${{ env.BLENDER_VERSION }}/" >> $GITHUB_PATH
+      - name: Build extension
+        run: |
+          pushd ./${{ env.ADDON_NAME }}
+          blender --command extension build
+          mkdir artifact
+          unzip -q ${{ env.ADDON_NAME }}.zip -d ./artifact
+          popd
+      - name: Archive addon
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ADDON_NAME }}-${{ github.ref_name }}-${{ github.sha }}
+          path: |
+            ./${{ env.ADDON_NAME }}/artifact/*
