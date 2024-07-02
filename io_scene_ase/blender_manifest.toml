@@ -24,4 +24,4 @@ paths_exclude_pattern = [
 ]
 
 [permissions]
-files = "Export ASE files to disk"
+files = "Export .ase files to disk"
