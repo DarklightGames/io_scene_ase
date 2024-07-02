@@ -15,6 +15,11 @@ jobs:
       ADDON_NAME: io_scene_ase
     steps:
       - uses: actions/checkout@v3
+      - uses: SebRollen/toml-action@v1.2.0
+        id: read_manifest
+        with:
+          file: 'io_scene_ase/blender_manifest.toml'
+          field: 'version'
       - name: Set derived environment variables
         run: |
           echo "BLENDER_FILENAME=${{ env.BLENDER_VERSION }}.tar.xz" >> $GITHUB_ENV
@@ -39,7 +44,7 @@ jobs:
           pushd ./${{ env.ADDON_NAME }}
           blender --command extension build
           mkdir artifact
-          unzip -q ${{ env.ADDON_NAME }}.zip -d ./artifact
+          unzip -q ${{ env.ADDON_NAME }}-${{ steps.read_manifest.outputs.value }}.zip -d ./artifact
           popd
       - name: Archive addon
         uses: actions/upload-artifact@v4
