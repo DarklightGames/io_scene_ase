@@ -1,4 +1,4 @@
-# io_scene_ase
+[![Build Extension](https://github.com/DarklightGames/io_scene_ase/actions/workflows/main.yml/badge.svg)](https://github.com/DarklightGames/io_scene_ase/actions/workflows/main.yml)
 
 This is a Blender addon allowing you to export static meshes to the now-defunct ASE (ASCII Scene Export) format still in use in legacy programs like Unreal Tournament 2004.
 
