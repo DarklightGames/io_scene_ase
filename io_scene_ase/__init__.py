@@ -17,7 +17,6 @@ classes = exporter.classes
 
 def menu_func_export(self, context):
     self.layout.operator(exporter.ASE_OT_export.bl_idname, text='ASCII Scene Export (.ase)')
-    self.layout.operator(exporter.ASE_OT_export_collections.bl_idname, text='ASCII Scene Export Collections (.ase)')
 
 
 def register():
