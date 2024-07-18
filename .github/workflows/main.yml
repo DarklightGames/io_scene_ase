@@ -11,7 +11,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      BLENDER_VERSION: blender-4.2.0-beta+v42.603b833fe3cb-linux.x86_64-release
+      BLENDER_VERSION: blender-4.2.0-linux-x64
       ADDON_NAME: io_scene_ase
     steps:
       - uses: actions/checkout@v3
@@ -23,7 +23,7 @@ jobs:
       - name: Set derived environment variables
         run: |
           echo "BLENDER_FILENAME=${{ env.BLENDER_VERSION }}.tar.xz" >> $GITHUB_ENV
-          echo "BLENDER_URL=https://cdn.builder.blender.org/download/daily/${{ env.BLENDER_VERSION }}.tar.xz" >> $GITHUB_ENV
+          echo "BLENDER_URL=https://mirrors.iu13.net/blender/release/Blender4.2/${{ env.BLENDER_VERSION }}.tar.xz" >> $GITHUB_ENV
       - name: Install Blender Dependencies
         run: |
           sudo apt-get install libxxf86vm-dev -y
