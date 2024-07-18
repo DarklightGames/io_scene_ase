@@ -16,7 +16,7 @@ class ASEBuilderError(Exception):
 
 class ASEBuilderOptions(object):
     def __init__(self):
-        self.use_raw_mesh_data = False
+        self.object_eval_state = 'EVALUATED'
         self.materials: Optional[List[Material]] = None
 
 
@@ -55,18 +55,19 @@ class ASEBuilder(object):
             matrix_world = get_object_matrix(obj, asset_instance)
 
             # Evaluate the mesh after modifiers are applied
-            if options.use_raw_mesh_data:
-                mesh_object = obj
-                mesh_data = mesh_object.data
-            else:
-                depsgraph = context.evaluated_depsgraph_get()
-                bm = bmesh.new()
-                bm.from_object(obj, depsgraph)
-                mesh_data = bpy.data.meshes.new('')
-                bm.to_mesh(mesh_data)
-                del bm
-                mesh_object = bpy.data.objects.new('', mesh_data)
-                mesh_object.matrix_world = matrix_world
+            match options.object_eval_state:
+                case 'ORIGINAL':
+                    mesh_object = obj
+                    mesh_data = mesh_object.data
+                case 'EVALUATED':
+                    depsgraph = context.evaluated_depsgraph_get()
+                    bm = bmesh.new()
+                    bm.from_object(obj, depsgraph)
+                    mesh_data = bpy.data.meshes.new('')
+                    bm.to_mesh(mesh_data)
+                    del bm
+                    mesh_object = bpy.data.objects.new('', mesh_data)
+                    mesh_object.matrix_world = matrix_world
 
             if not is_collision_name(obj.name) and main_geometry_object is not None:
                 geometry_object = main_geometry_object

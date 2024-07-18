@@ -1,9 +1,10 @@
 import os.path
 from typing import Iterable, List, Set, Union
 
+import bpy
 from bpy_extras.io_utils import ExportHelper
-from bpy.props import StringProperty, BoolProperty, CollectionProperty, PointerProperty, IntProperty
-from bpy.types import Operator, Material, PropertyGroup, UIList, Object
+from bpy.props import StringProperty, BoolProperty, CollectionProperty, PointerProperty, IntProperty, EnumProperty
+from bpy.types import Operator, Material, PropertyGroup, UIList, Object, FileHandler, Collection
 from .builder import ASEBuilder, ASEBuilderOptions, ASEBuilderError, get_mesh_objects
 from .writer import ASEWriter
 
@@ -79,6 +80,11 @@ class ASE_UL_materials(UIList):
         row.prop(item.material, 'name', text='', emboss=False, icon_value=layout.icon(item.material))
 
 
+object_eval_state_items = (
+    ('EVALUATED', 'Evaluated', 'Use data from fully evaluated object'),
+    ('ORIGINAL', 'Original', 'Use data from original object with no modifiers applied'),
+)
+
 
 class ASE_OT_export(Operator, ExportHelper):
     bl_idname = 'io_scene_ase.ase_export'
@@ -88,7 +94,11 @@ class ASE_OT_export(Operator, ExportHelper):
     bl_description = 'Export selected objects to ASE'
     filename_ext = '.ase'
     filter_glob: StringProperty(default="*.ase", options={'HIDDEN'}, maxlen=255)
-    use_raw_mesh_data: BoolProperty(default=False, name='Raw Mesh Data', description='No modifiers will be evaluated as part of the exported mesh')
+    object_eval_state: EnumProperty(
+        items=object_eval_state_items,
+        name='Data',
+        default='EVALUATED'
+    )
 
     def draw(self, context):
         layout = self.layout
@@ -107,7 +117,9 @@ class ASE_OT_export(Operator, ExportHelper):
         advanced_header.label(text='Advanced')
 
         if advanced_panel:
-            advanced_panel.prop(self, 'use_raw_mesh_data')
+            advanced_panel.use_property_split = True
+            advanced_panel.use_property_decorate = False
+            advanced_panel.prop(self, 'object_eval_state')
 
     def invoke(self, context: 'Context', event: 'Event' ) -> Union[Set[str], Set[int]]:
         mesh_objects = [x[0] for x in get_mesh_objects(context.selected_objects)]
@@ -121,7 +133,7 @@ class ASE_OT_export(Operator, ExportHelper):
 
     def execute(self, context):
         options = ASEBuilderOptions()
-        options.use_raw_mesh_data = self.use_raw_mesh_data
+        options.object_eval_state = self.object_eval_state
         pg = getattr(context.scene, 'ase_export')
         options.materials = [x.material for x in pg.material_list]
         try:
@@ -134,59 +146,70 @@ class ASE_OT_export(Operator, ExportHelper):
             return {'CANCELLED'}
 
 
-class ASE_OT_export_collections(Operator, ExportHelper):
-    bl_idname = 'io_scene_ase.ase_export_collections'
-    bl_label = 'Export Collections to ASE'
+class ASE_OT_export_collection(Operator, ExportHelper):
+    bl_idname = 'io_scene_ase.ase_export_collection'
+    bl_label = 'Export collection to ASE'
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
-    bl_description = 'Batch export collections to ASE. The name of the collection will be used as the filename'
+    bl_description = 'Export collection to ASE'
     filename_ext = '.ase'
     filter_glob: StringProperty(
         default="*.ase",
         options={'HIDDEN'},
-        maxlen=255,  # Max internal buffer length, longer would be hilighted.
+        maxlen=255,  # Max internal buffer length, longer would be highlighted.
     )
-    use_raw_mesh_data: BoolProperty(
-        default=False,
-        description='No modifiers will be evaluated as part of the exported mesh',
-        name='Raw Mesh Data')
+    object_eval_state: EnumProperty(
+        items=object_eval_state_items,
+        name='Data',
+        default='EVALUATED'
+    )
+
+    collection: StringProperty()
+
 
     def draw(self, context):
         layout = self.layout
-        layout.prop(self, 'use_raw_mesh_data')
+
+        advanced_header, advanced_panel = layout.panel('Advanced', default_closed=True)
+        advanced_header.label(text='Advanced')
+
+        if advanced_panel:
+            advanced_panel.use_property_split = True
+            advanced_panel.use_property_decorate = False
+            advanced_panel.prop(self, 'object_eval_state')
 
     def execute(self, context):
+        collection = bpy.data.collections.get(self.collection)
+
         options = ASEBuilderOptions()
-        options.use_raw_mesh_data = self.use_raw_mesh_data
+        options.object_eval_state = self.object_eval_state
 
-        # Iterate over all the visible collections in the scene.
-        layer_collections = context.view_layer.layer_collection.children
-        collections = [x.collection for x in layer_collections if not x.hide_viewport and not x.exclude]
+        # Iterate over all the objects in the collection.
+        mesh_objects = get_mesh_objects(collection.all_objects)
+        # Get all the materials used by the objects in the collection.
+        options.materials = get_unique_materials([x[0] for x in mesh_objects])
 
-        context.window_manager.progress_begin(0, len(layer_collections))
+        try:
+            ase = ASEBuilder().build(context, options, collection.all_objects)
+        except ASEBuilderError as e:
+            self.report({'ERROR'}, str(e))
+            return {'CANCELLED'}
 
-        for i, collection in enumerate(collections):
-            # Iterate over all the objects in the collection.
-            mesh_objects = get_mesh_objects(collection.all_objects)
-            # Get all the materials used by the objects in the collection.
-            options.materials = get_unique_materials([x[0] for x in mesh_objects])
-
-            try:
-                ase = ASEBuilder().build(context, options, collection.all_objects)
-                dirname = os.path.dirname(self.filepath)
-                filepath = os.path.join(dirname, collection.name + '.ase')
-                ASEWriter().write(filepath, ase)
-            except ASEBuilderError as e:
-                self.report({'ERROR'}, str(e))
-                return {'CANCELLED'}
-
-            context.window_manager.progress_update(i)
-
-        context.window_manager.progress_end()
-
-        self.report({'INFO'}, f'{len(collections)} collections exported successfully')
+        try:
+            ASEWriter().write(self.filepath, ase)
+        except PermissionError as e:
+            self.report({'ERROR'}, 'ASCII Scene Export: ' + str(e))
+            return {'CANCELLED'}
 
         return {'FINISHED'}
+
+
+class ASE_FH_export(FileHandler):
+    bl_idname = 'ASE_FH_export'
+    bl_label = 'ASCII Scene Export'
+    bl_export_operator = ASE_OT_export_collection.bl_idname
+    bl_file_extensions = '.ase'
+
 
 
 classes = (
@@ -194,7 +217,8 @@ classes = (
     ASE_UL_materials,
     ASE_PG_export,
     ASE_OT_export,
-    ASE_OT_export_collections,
+    ASE_OT_export_collection,
     ASE_OT_material_list_move_down,
     ASE_OT_material_list_move_up,
+    ASE_FH_export,
 )
