@@ -100,6 +100,13 @@ class ASE_OT_export(Operator, ExportHelper):
         default='EVALUATED'
     )
 
+    @classmethod
+    def poll(cls, context):
+        if not any(x.type == 'MESH' for x in context.selected_objects):
+            cls.poll_message_set('At least one mesh must be selected')
+            return False
+        return True
+
     def draw(self, context):
         layout = self.layout
 
