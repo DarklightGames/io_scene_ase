@@ -134,6 +134,8 @@ class ASE_OT_export(Operator, ExportHelper):
         pg = getattr(context.scene, 'ase_export')
         populate_material_list(mesh_objects, pg.material_list)
 
+        self.filepath = f'{context.active_object.name}.ase'
+
         context.window_manager.fileselect_add(self)
 
         return {'RUNNING_MODAL'}
