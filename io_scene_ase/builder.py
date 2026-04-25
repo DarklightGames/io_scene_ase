@@ -151,10 +151,10 @@ def build_ase(context: Context, options: ASEBuildOptions, dfs_objects: Iterable[
 
             # Apply SCCT Versus MCDCX flip for collision meshes
             apply_collision_flip = options.scct_versus_mcdcx_flip and geometry_object.is_collision
+            full_transform = coordinate_system_transform @ vertex_transform
             if apply_collision_flip:
-                full_transform = Matrix.Scale(-1.0, 4, Vector((1, 0, 0))) @ Matrix.Scale(-1.0, 4, Vector((0, 1, 0))) @ coordinate_system_transform @ vertex_transform
-            else:
-                full_transform = coordinate_system_transform @ vertex_transform
+                flip_transform = Matrix.Scale(-1.0, 4, Vector((1, 0, 0))) @ Matrix.Scale(-1.0, 4, Vector((0, 1, 0)))
+                full_transform = flip_transform @ full_transform
 
             for _, vertex in enumerate(mesh_data.vertices):
                 geometry_object.vertices.append(full_transform @ vertex.co)
