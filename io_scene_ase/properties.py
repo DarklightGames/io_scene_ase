@@ -100,6 +100,7 @@ class ASE_PG_export(PropertyGroup, TransformSourceMixin, TransformMixin):
     has_vertex_colors: BoolProperty(name='Has Vertex Colors', default=False, options={'HIDDEN'})
     vertex_color_attribute: EnumProperty(name='Attribute', items=vertex_color_attribute_items)
     should_invert_normals: BoolProperty(name='Invert Normals', default=False, description='Invert the normals of the exported geometry. This should be used if the software you are exporting to uses a different winding order than Blender')
+    scct_versus_mcdcx_flip: BoolProperty(name='SCCT MCDCX Flip', default=False, description='Flip X and Y axes for MCDCX collision meshes only (for SCCT Versus compatibility)')
 
 
 class ASE_PG_scene_settings(PropertyGroup, TransformMixin):

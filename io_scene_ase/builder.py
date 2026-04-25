@@ -32,6 +32,7 @@ class ASEBuildOptions(object):
         self.scale = 1.0
         self.forward_axis = 'X'
         self.up_axis = 'Z'
+        self.scct_versus_mcdcx_flip = False
 
 
 def get_vector_from_axis_identifier(axis_identifier: str) -> Vector:
@@ -148,10 +149,15 @@ def build_ase(context: Context, options: ASEBuildOptions, dfs_objects: Iterable[
                                 options.transform @
                                 matrix_world)
 
+            # Apply SCCT Versus MCDCX flip for collision meshes
+            apply_collision_flip = options.scct_versus_mcdcx_flip and geometry_object.is_collision
+            if apply_collision_flip:
+                full_transform = Matrix.Scale(-1.0, 4, Vector((1, 0, 0))) @ Matrix.Scale(-1.0, 4, Vector((0, 1, 0))) @ coordinate_system_transform @ vertex_transform
+            else:
+                full_transform = coordinate_system_transform @ vertex_transform
+
             for _, vertex in enumerate(mesh_data.vertices):
-                vertex = vertex_transform @ vertex.co
-                vertex = coordinate_system_transform @ vertex
-                geometry_object.vertices.append(vertex)
+                geometry_object.vertices.append(full_transform @ vertex.co)
 
             material_indices = []
             if not geometry_object.is_collision:
