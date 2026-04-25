@@ -314,7 +314,15 @@ class ASE_OT_export(Operator, ExportHelper, TransformMixin, TransformSourceMixin
             advanced_panel.use_property_split = True
             advanced_panel.use_property_decorate = False
             advanced_panel.prop(self, 'object_eval_state')
-            advanced_panel.prop(pg, 'should_invert_normals')
+
+            fixes_header, fixes_panel = advanced_panel.panel('Fixes', default_closed=True)
+            fixes_header.label(text='Fixes')
+
+            if fixes_panel:
+                fixes_panel.use_property_split = True
+                fixes_panel.use_property_decorate = False
+                fixes_panel.prop(pg, 'should_invert_normals')
+                fixes_panel.prop(pg, 'scct_versus_mcdcx_flip')
 
     def invoke(self, context: 'Context', event: 'Event' ) -> Union[Set[str], Set[int]]:
         from .dfs import dfs_view_layer_objects
@@ -350,6 +358,7 @@ class ASE_OT_export(Operator, ExportHelper, TransformMixin, TransformSourceMixin
         options.vertex_color_attribute = pg.vertex_color_attribute
         options.materials = [x.material for x in pg.material_list]
         options.should_invert_normals = pg.should_invert_normals
+        options.scct_versus_mcdcx_flip = pg.scct_versus_mcdcx_flip
 
         match self.transform_source:
             case 'SCENE':
@@ -482,6 +491,10 @@ class ASE_OT_export_collection(Operator, ExportHelper, TransformSourceMixin, Tra
         options.scale = transform_source.scale
         options.forward_axis = transform_source.forward_axis
         options.up_axis = transform_source.up_axis
+        
+        # Get SCCT Versus MCDCX flip option from scene
+        pg = getattr(context.scene, 'ase_export')
+        options.scct_versus_mcdcx_flip = pg.scct_versus_mcdcx_flip
 
         match self.export_space:
             case 'WORLD':
