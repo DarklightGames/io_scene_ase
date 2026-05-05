@@ -1,6 +1,6 @@
 schema_version = "1.0.0"
 id = "io_scene_ase"
-version = "2.2.2"
+version = "2.2.3"
 name = "ASCII Scene Export (.ase)"
 tagline = "Export .ase files used in Unreal Engine 1 & 2"
 maintainer = "Colin Basnett <cmbasnett@gmail.com>"
