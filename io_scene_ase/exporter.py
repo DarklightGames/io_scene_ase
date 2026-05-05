@@ -363,7 +363,7 @@ class ASE_OT_export(Operator, ExportHelper, TransformMixin, TransformSourceMixin
         match self.transform_source:
             case 'SCENE':
                 transform_source = getattr(context.scene, 'ase_settings')
-            case 'OBJECT':
+            case 'CUSTOM':
                 transform_source = self
 
         options.scale = transform_source.scale
@@ -458,7 +458,7 @@ class ASE_OT_export_collection(Operator, ExportHelper, TransformSourceMixin, Tra
                 case 'SCENE':
                     transform_source = getattr(context.scene, 'ase_settings')
                     flow.enabled = False
-                case 'OBJECT':
+                case 'CUSTOM':
                     transform_source = self
 
             flow.use_property_split = True
@@ -485,7 +485,7 @@ class ASE_OT_export_collection(Operator, ExportHelper, TransformSourceMixin, Tra
         match self.transform_source:
             case 'SCENE':
                 transform_source = getattr(context.scene, 'ase_settings')
-            case 'OBJECT':
+            case 'CUSTOM':
                 transform_source = self
 
         options.scale = transform_source.scale
