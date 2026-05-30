@@ -20,26 +20,6 @@ class DfsObject:
         self.instance_objects = instance_objects
         self.matrix_world = matrix_world
 
-    @property
-    def is_visible(self) -> bool:
-        '''
-        Check if the object is visible.
-        @return: True if the object is visible, False otherwise.
-        '''
-        if self.instance_objects:
-            return self.instance_objects[-1].visible_get()
-        return self.obj.visible_get()
-
-    @property
-    def is_selected(self) -> bool:
-        '''
-        Check if the object is selected.
-        @return: True if the object is selected, False otherwise.
-        '''
-        if self.instance_objects:
-            return self.instance_objects[-1].select_get()
-        return self.obj.select_get()
-
 
 
 def _dfs_object_children(obj: Object, collection: Collection) -> Iterable[Object]:

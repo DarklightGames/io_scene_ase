@@ -1,31 +1,32 @@
-from typing import Iterable, List, cast, Optional
+from abc import ABCMeta, abstractmethod
+from collections import abc
+from typing import Iterable, List, Literal, cast, Optional
 
 import bpy
 from bpy_extras.io_utils import ExportHelper
 from bpy.props import StringProperty, EnumProperty
-from bpy.types import Operator, Material, UIList, Object, FileHandler, Event, Context, SpaceProperties, \
+from bpy.types import Operator, Material, UILayout, UIList, Object, FileHandler, Event, Context, SpaceProperties, \
     Collection, Panel, Depsgraph
 from mathutils import Matrix, Vector
 
 from .builder import ASEBuildOptions, ASEBuildError, build_ase
 from .writer import write_ase
-from .properties import TransformMixin, TransformSourceMixin, MaterialMappingMixin, get_vertex_color_attributes_from_objects
+from .properties import AseExportMixin, TransformMixin, MaterialMappingMixin, VertexColorMixin, get_vertex_color_attributes_from_objects
+from .dfs import dfs_collection_objects, dfs_objects_recursive
 
 
-def get_unique_materials(depsgraph: Depsgraph, mesh_objects: Iterable[Object]) -> List[Material]:
+def _get_unique_materials(depsgraph: Depsgraph, mesh_objects: Iterable[Object]) -> List[Material]:
     materials = []
     for mesh_object in mesh_objects:
         eo = mesh_object.evaluated_get(depsgraph)
         for i, material_slot in enumerate(eo.material_slots):
             material = material_slot.material
-            # if material is None:
-                # raise RuntimeError(f'Material slots cannot be empty ({mesh_object.name}, material slot index {i})')
             if material not in materials:
                 materials.append(material)
     return materials
 
 
-def get_collection_from_context(context: Context) -> Optional[Collection]:
+def _get_collection_from_context(context: Context) -> Optional[Collection]:
     if context.space_data.type != 'PROPERTIES':
         return None
 
@@ -37,8 +38,8 @@ def get_collection_from_context(context: Context) -> Optional[Collection]:
         return context.collection
 
 
-def get_collection_export_operator_from_context(context: Context) -> Optional['ASE_OT_export_collection']:
-    collection = get_collection_from_context(context)
+def _get_collection_export_operator_from_context(context: Context) -> ASE_OT_export_collection | None:
+    collection = _get_collection_from_context(context)
     if collection is None or collection.active_exporter_index is None:
         return None
     if 0 > collection.active_exporter_index >= len(collection.exporters):
@@ -48,25 +49,37 @@ def get_collection_export_operator_from_context(context: Context) -> Optional['A
     return exporter.export_properties
 
 
-class MaterialsSource:
+class ObjectsSource:
+    __metaclass__ = ABCMeta
+
     @staticmethod
-    def _get_materials(context: Context) -> List[Material]:
-        return []
+    @abstractmethod
+    def _get_objects(context: Context) -> List[Object]:
+        """Hey"""
 
 
-class MaterialsSourceCollection(MaterialsSource):
+class ObjectsSourceCollection(ObjectsSource):
     @staticmethod
-    def _get_materials(context) -> List[Material]:
-        collection = get_collection_from_context(context)
-        operator = get_collection_export_operator_from_context(context)
+    def _get_objects(context: Context) -> List[Object]:
+        collection = _get_collection_from_context(context)
+        operator = _get_collection_export_operator_from_context(context)
         if collection is None or operator is None:
             return []
+        return list(map(lambda x: x.obj, filter(lambda x: x.obj.type == 'MESH', dfs_collection_objects(collection))))
 
-        from .dfs import dfs_collection_objects
 
-        mesh_objects = list(map(lambda x: x.obj, filter(lambda x: x.obj.type == 'MESH', dfs_collection_objects(collection))))
+class ObjectsSourceScene(ObjectsSource):
+    @staticmethod
+    def _get_objects(context: Context) -> List[Object]:
+        if context.selected_objects is None:
+            return []
+        return list(map(lambda x: x.obj, filter(lambda x: x.obj.type == 'MESH', dfs_objects_recursive(context.selected_objects))))
 
-        return get_unique_materials(context.evaluated_depsgraph_get(), mesh_objects)
+
+class MaterialsSource(ObjectsSource):
+    @classmethod
+    def _get_materials(cls, context: Context) -> List[Material]:
+        return _get_unique_materials(context.evaluated_depsgraph_get(), cls._get_objects(context))
 
 
 def _get_unique_materials_from_selected_objects(context: Context):
@@ -75,40 +88,36 @@ def _get_unique_materials_from_selected_objects(context: Context):
     from .dfs import dfs_objects_recursive
     dfs_objects = list(filter(lambda x: x.obj.type == 'MESH', dfs_objects_recursive(context.selected_objects)))
     mesh_objects = list(map(lambda x: x.obj, dfs_objects))
-    return get_unique_materials(context.evaluated_depsgraph_get(), mesh_objects)
+    return _get_unique_materials(context.evaluated_depsgraph_get(), mesh_objects)
 
 
-class MaterialsSourceScene(MaterialsSource):
+class AseExportSource:
+    __metaclass__ = ABCMeta
+
     @staticmethod
-    def _get_materials(context) -> List[Material]:
-        # Get materials from the the selected objects in the scene.
-        return _get_unique_materials_from_selected_objects(context)
-
-
-class MaterialMappingSource:
-    @classmethod
-    def _get_props(cls, context) -> MaterialMappingMixin | None:
+    @abstractmethod
+    def _get_props(context) -> AseExportMixin | None:
         pass
 
 
-class MaterialMappingSourceCollection(MaterialMappingSource):
-    @classmethod
-    def _get_props(cls, context: Context) -> MaterialMappingMixin | None:
-        return get_collection_export_operator_from_context(context)
+class AseExportSourceCollection(AseExportSource):
+    @staticmethod
+    def _get_props(context: Context) -> AseExportMixin | None:
+        return _get_collection_export_operator_from_context(context)
 
 
-class MaterialMappingSourceScene(MaterialMappingSource):
-    @classmethod
-    def _get_props(cls, context: Context) -> MaterialMappingMixin | None:
+class AseExportSourceScene(AseExportSource):
+    @staticmethod
+    def _get_props(context: Context) -> AseExportMixin | None:
         return getattr(context.scene, 'ase_export')
 
 
-class MaterialMappingAddOperator(Operator, MaterialMappingSource):
+class MaterialMappingAddOperator(Operator, AseExportSource):
     bl_label = 'Add'
     bl_description = 'Add a material mapping to the list'
 
     def execute(self, context: 'Context'):
-        props = self.__class__._get_props(context)
+        props = self._get_props(context)
 
         if props is None:
             return {'CANCELLED'}
@@ -120,15 +129,15 @@ class MaterialMappingAddOperator(Operator, MaterialMappingSource):
         return {'FINISHED'}
 
 
-class ASE_OT_export_collection_material_mapping_add(MaterialMappingAddOperator, MaterialMappingSourceCollection, MaterialsSourceCollection):
+class ASE_OT_export_collection_material_mapping_add(MaterialMappingAddOperator, AseExportSourceCollection, ObjectsSourceCollection, MaterialsSource):
     bl_idname = 'ase_export.collection_material_mapping_add'
 
 
-class ASE_OT_export_scene_material_mapping_add(MaterialMappingAddOperator, MaterialMappingSourceScene, MaterialsSourceScene):
+class ASE_OT_export_scene_material_mapping_add(MaterialMappingAddOperator, AseExportSourceScene, ObjectsSourceScene, MaterialsSource):
     bl_idname = 'ase_export.scene_material_mapping_add'
 
 
-class MaterialMappingRemoveOperator(Operator, MaterialMappingSource):
+class MaterialMappingRemoveOperator(Operator, AseExportSource):
     bl_label = 'Remove'
     bl_description = 'Remove the selected material mapping from the list'
 
@@ -151,15 +160,15 @@ class MaterialMappingRemoveOperator(Operator, MaterialMappingSource):
         return {'FINISHED'}
 
 
-class ASE_OT_export_collection_material_mapping_remove(MaterialMappingRemoveOperator, MaterialMappingSourceCollection, MaterialsSourceCollection):
+class ASE_OT_export_collection_material_mapping_remove(MaterialMappingRemoveOperator, AseExportSourceCollection, ObjectsSourceCollection, MaterialsSource):
     bl_idname = 'ase_export.collection_material_mapping_remove'
 
 
-class ASE_OT_export_scene_material_mapping_remove(MaterialMappingRemoveOperator, MaterialMappingSourceScene, MaterialsSourceScene):
+class ASE_OT_export_scene_material_mapping_remove(MaterialMappingRemoveOperator, AseExportSourceScene, ObjectsSourceScene, MaterialsSource):
     bl_idname = 'ase_export.scene_material_mapping_remove'
 
 
-class MaterialMappingMoveUpOperator(Operator, MaterialMappingSource):
+class MaterialMappingMoveUpOperator(Operator, AseExportSource):
     bl_label = 'Move Up'
     bl_description = 'Move the selected material mapping up one slot'
 
@@ -171,7 +180,7 @@ class MaterialMappingMoveUpOperator(Operator, MaterialMappingSource):
         return props.material_mapping_index > 0
 
     def execute(self, context: 'Context'):
-        props = self.__class__._get_props(context)
+        props = self._get_props(context)
 
         if props is None:
             return {'CANCELLED'}
@@ -182,15 +191,15 @@ class MaterialMappingMoveUpOperator(Operator, MaterialMappingSource):
         return {'FINISHED'}
 
 
-class ASE_OT_export_collection_material_mapping_move_up(MaterialMappingSourceCollection, MaterialMappingMoveUpOperator):
+class ASE_OT_export_collection_material_mapping_move_up(AseExportSourceCollection, MaterialMappingMoveUpOperator):
     bl_idname = 'ase_export.collection_material_mapping_move_up'
 
 
-class ASE_OT_export_scene_material_mapping_move_up(MaterialMappingSourceScene, MaterialMappingMoveUpOperator):
+class ASE_OT_export_scene_material_mapping_move_up(AseExportSourceScene, MaterialMappingMoveUpOperator):
     bl_idname = 'ase_export.scene_material_mapping_move_up'
 
 
-class MaterialMappingMoveDownOperator(Operator, MaterialMappingSource):
+class MaterialMappingMoveDownOperator(Operator, AseExportSource):
     bl_label = 'Move Down'
     bl_description = 'Move the selected material mapping down one slot'
 
@@ -202,7 +211,7 @@ class MaterialMappingMoveDownOperator(Operator, MaterialMappingSource):
         return props.material_mapping_index < len(props.material_mapping) - 1
 
     def execute(self, context: 'Context'):
-        props = self.__class__._get_props(context)
+        props = self._get_props(context)
 
         if props is None:
             return {'CANCELLED'}
@@ -213,11 +222,11 @@ class MaterialMappingMoveDownOperator(Operator, MaterialMappingSource):
         return {'FINISHED'}
 
 
-class ASE_OT_export_collection_material_mapping_move_down(MaterialMappingSourceCollection, MaterialMappingMoveDownOperator):
+class ASE_OT_export_collection_material_mapping_move_down(AseExportSourceCollection, MaterialMappingMoveDownOperator):
     bl_idname = 'ase_export.collection_material_mapping_move_down'
 
 
-class ASE_OT_export_scene_material_mapping_move_down(MaterialMappingSourceCollection, MaterialMappingMoveDownOperator):
+class ASE_OT_export_scene_material_mapping_move_down(AseExportSourceCollection, MaterialMappingMoveDownOperator):
     bl_idname = 'ase_export.scene_material_mapping_move_down'
 
 
@@ -251,7 +260,35 @@ def _material_mapping_populate(props: MaterialMappingMixin, materials: Iterable[
         m.value = material.name
 
 
-class MaterialMappingPopulateOperator(MaterialMappingSource, MaterialsSource, Operator):
+def _vertex_color_attributes_populate(props: VertexColorMixin, mesh_objects: Iterable[Object]):
+    props.vertex_color_attributes.clear()
+    for name in get_vertex_color_attributes_from_objects(mesh_objects):
+        x = props.vertex_color_attributes.add()
+        x.name = name
+
+
+class VertexColorAttributesPopulateOperator(Operator, ObjectsSource, VertexColorMixin, AseExportSource):
+    bl_label = 'Populate Vertex Colors'
+    bl_description = 'Populate the vertex colors list with those used by the relevant objects'
+
+    def execute(self, context: Context):
+        objects = self._get_objects(context)
+        props = self._get_props(context)
+        if props is None:
+            return {'CANCELLED'}
+        _vertex_color_attributes_populate(props, objects)
+        return {'FINISHED'}
+
+
+class ASE_OT_export_scene_vertex_color_attributes_populate(VertexColorAttributesPopulateOperator, ObjectsSourceScene, AseExportSourceScene):
+    bl_idname = 'ase_export.scene_vertex_color_attributes_populate'
+
+
+class ASE_OT_export_collection_vertex_color_attributes_populate(VertexColorAttributesPopulateOperator, ObjectsSourceCollection, AseExportSourceCollection):
+    bl_idname = 'ase_export.collection_vertex_color_attributes_populate'
+
+
+class MaterialMappingPopulateOperator(AseExportSource, MaterialsSource, Operator):
     bl_label = 'Populate Material Mapping'
     bl_description = 'Populate the material mapping with the materials used by the relevant objects'
 
@@ -264,21 +301,48 @@ class MaterialMappingPopulateOperator(MaterialMappingSource, MaterialsSource, Op
         return {'FINISHED'}
 
 
-class ASE_OT_export_collection_material_mapping_populate(MaterialMappingPopulateOperator, MaterialMappingSourceCollection, MaterialsSourceCollection):
+class ASE_OT_export_collection_material_mapping_populate(MaterialMappingPopulateOperator, AseExportSourceCollection, ObjectsSourceCollection, MaterialsSource):
     bl_idname = 'ase_export.collection_material_mapping_populate'
 
 
-class ASE_OT_export_scene_material_mapping_populate(MaterialMappingPopulateOperator, MaterialMappingSourceScene, MaterialsSourceScene):
+class ASE_OT_export_scene_material_mapping_populate(MaterialMappingPopulateOperator, AseExportSourceScene, ObjectsSourceScene, MaterialsSource):
     bl_idname = 'ase_export.scene_material_mapping_populate'
 
 
-object_eval_state_items = [
-    ('EVALUATED', 'Evaluated', 'Use data from fully evaluated object'),
-    ('ORIGINAL', 'Original', 'Use data from original object with no modifiers applied'),
-]
+def _get_selected_mesh_objects(context: Context):
+    if context.selected_objects is None:
+        return []
+    dfs_objects = list(filter(lambda x: x.obj.type == 'MESH', dfs_objects_recursive(context.selected_objects)))
+    return [x.obj for x in dfs_objects]
 
 
-class ASE_OT_export(Operator, ExportHelper, TransformMixin, TransformSourceMixin):
+def _options_build(options, props: AseExportMixin, mesh_objects: Iterable[Object]):
+    options.object_eval_state = props.object_eval_state
+    options.should_export_vertex_colors = props.should_export_vertex_colors
+    options.vertex_color_mode = props.vertex_color_mode
+    options.has_vertex_colors = len(get_vertex_color_attributes_from_objects(mesh_objects)) > 0
+    options.vertex_color_attribute = props.vertex_color_attribute
+    options.should_invert_normals = props.should_invert_normals
+    options.scct_versus_mcdcx_flip = props.scct_versus_mcdcx_flip
+
+    match props.transform_source:
+        case 'SCENE':
+            transform_source = getattr(bpy.context.scene, 'ase_settings')
+        case 'CUSTOM':
+            transform_source = props
+        case _:
+            assert False, f'Unknown transform source {props.transform_source}'
+
+    options.scale = transform_source.scale
+    options.forward_axis = transform_source.forward_axis
+    options.up_axis = transform_source.up_axis
+
+    options.materials = _get_unique_materials(bpy.context.evaluated_depsgraph_get(), mesh_objects)
+    if props.material_mode == 'MANUAL':
+        options.materials = apply_material_mapping(options.materials, props)
+
+
+class ASE_OT_export(Operator, ExportHelper):
     bl_idname = 'io_scene_ase.ase_export'
     bl_label = 'Export ASE'
     bl_space_type = 'PROPERTIES'
@@ -286,15 +350,10 @@ class ASE_OT_export(Operator, ExportHelper, TransformMixin, TransformSourceMixin
     bl_description = 'Export selected objects to ASE'
     filename_ext = '.ase'
     filter_glob: StringProperty(default="*.ase", options={'HIDDEN'}, maxlen=255)
-    object_eval_state: EnumProperty(
-        items=object_eval_state_items,
-        name='Data',
-        default='EVALUATED'
-    )
 
     @classmethod
     def poll(cls, context):
-        if not any(x.type == 'MESH' or (x.type == 'EMPTY' and x.instance_collection is not None) for x in context.selected_objects):
+        if not context.selected_objects or not any(x.type == 'MESH' or (x.type == 'EMPTY' and x.instance_collection is not None) for x in context.selected_objects):
             cls.poll_message_set('At least one mesh or instanced collection must be selected')
             return False
         return True
@@ -302,126 +361,46 @@ class ASE_OT_export(Operator, ExportHelper, TransformMixin, TransformSourceMixin
     def draw(self, context):
         layout = self.layout
         assert layout is not None
-        pg = context.scene.ase_export
-
-        materials_header, materials_panel = layout.panel('Materials', default_closed=False)
-        materials_header.label(text='Materials')
-
-        if materials_panel:
-            flow = layout.grid_flow()
-            flow.use_property_split = True
-            flow.use_property_decorate = False
-            flow.prop(pg, 'material_mode')
-            if pg.material_mode == 'MANUAL':
-                row = flow.row()
-                row.template_list(ASE_UL_material_names.bl_idname, '', pg, 'material_mapping', pg, 'material_mapping_index')
-                col = row.column(align=True)
-                col.operator(ASE_OT_export_scene_material_mapping_populate.bl_idname, icon='FILE_REFRESH', text='')
-                col.separator()
-                col.operator(ASE_OT_export_scene_material_mapping_add.bl_idname, icon='ADD', text='')
-                col.operator(ASE_OT_export_scene_material_mapping_remove.bl_idname, icon='REMOVE', text='')
-                col.separator()
-                col.operator(ASE_OT_export_scene_material_mapping_move_up.bl_idname, icon='TRIA_UP', text='')
-                col.operator(ASE_OT_export_scene_material_mapping_move_down.bl_idname, icon='TRIA_DOWN', text='')
-
-        if context.selected_objects is None:
-            return
-
-        has_vertex_colors = len(get_vertex_color_attributes_from_objects(context.selected_objects)) > 0
-        vertex_colors_header, vertex_colors_panel = layout.panel_prop(pg, 'should_export_vertex_colors')
-        row = vertex_colors_header.row()
-        row.enabled = has_vertex_colors
-        row.prop(pg, 'should_export_vertex_colors', text='Vertex Colors')
-
-        if vertex_colors_panel:
-            vertex_colors_panel.use_property_split = True
-            vertex_colors_panel.use_property_decorate = False
-            if has_vertex_colors:
-                vertex_colors_panel.prop(pg, 'vertex_color_mode', text='Mode')
-                if pg.vertex_color_mode == 'EXPLICIT':
-                    vertex_colors_panel.prop(pg, 'vertex_color_attribute', icon='GROUP_VCOL')
-            else:
-                vertex_colors_panel.label(text='No vertex color attributes found')
-
-        transform_header, transform_panel = layout.panel('Transform', default_closed=True)
-        transform_header.label(text='Transform')
-
-        if transform_panel:
-            transform_panel.use_property_split = True
-            transform_panel.use_property_decorate = False
-            transform_panel.prop(self, 'scale')
-            transform_panel.prop(self, 'forward_axis')
-            transform_panel.prop(self, 'up_axis')
-
-        advanced_header, advanced_panel = layout.panel('Advanced', default_closed=True)
-        advanced_header.label(text='Advanced')
-
-        if advanced_panel:
-            advanced_panel.use_property_split = True
-            advanced_panel.use_property_decorate = False
-            advanced_panel.prop(self, 'object_eval_state')
-
-            fixes_header, fixes_panel = advanced_panel.panel('Fixes', default_closed=True)
-            fixes_header.label(text='Fixes')
-
-            if fixes_panel:
-                fixes_panel.use_property_split = True
-                fixes_panel.use_property_decorate = False
-                fixes_panel.prop(pg, 'should_invert_normals')
-                fixes_panel.prop(pg, 'scct_versus_mcdcx_flip')
+        pg = cast(AseExportMixin, context.scene.ase_export)
+        
+        _draw_materials_panel(layout, pg,
+                              ASE_OT_export_scene_material_mapping_populate.bl_idname,
+                              ASE_OT_export_scene_material_mapping_add.bl_idname,
+                              ASE_OT_export_scene_material_mapping_remove.bl_idname,
+                              ASE_OT_export_scene_material_mapping_move_up.bl_idname,
+                              ASE_OT_export_scene_material_mapping_move_down.bl_idname,
+                              )
+        _draw_transform_panel(layout, pg)
+        _draw_vertex_colors_panel(layout, pg, ASE_OT_export_scene_vertex_color_attributes_populate.bl_idname)
+        _draw_advanced_panel(layout, pg)
 
     def invoke(self, context: Context, event: Event):
-        if context.active_object is None:
-            return {'CANCELLED'}
-        
-        pg = getattr(context.scene, 'ase_export')
+        pg = cast(AseExportMixin, getattr(context.scene, 'ase_export'))
 
-        # Populate the material mapping list.
+        # Populate the material mapping list and vertex color attributes.
         materials = _get_unique_materials_from_selected_objects(context)
         _material_mapping_populate(pg, materials)
 
-        self.filepath = f'{context.active_object.name}.ase'
+        mesh_objects = _get_selected_mesh_objects(context)
+        _vertex_color_attributes_populate(pg, mesh_objects)
+
+        if context.active_object is not None:
+            self.filepath = f'{context.active_object.name}.ase'
 
         context.window_manager.fileselect_add(self)
 
         return {'RUNNING_MODAL'}
 
     def execute(self, context):
-        pg = getattr(context.scene, 'ase_export')
+        pg = cast(AseExportMixin, getattr(context.scene, 'ase_export'))
 
-        if context.selected_objects is None:
-            return {'CANCELLED'}
-
+        mesh_objects = _get_selected_mesh_objects(context)
         options = ASEBuildOptions()
-        options.object_eval_state = self.object_eval_state
-        options.should_export_vertex_colors = pg.should_export_vertex_colors
-        options.vertex_color_mode = pg.vertex_color_mode
-        options.has_vertex_colors = len(get_vertex_color_attributes_from_objects(context.selected_objects)) > 0
-        options.vertex_color_attribute = pg.vertex_color_attribute
-        options.should_invert_normals = pg.should_invert_normals
-        options.scct_versus_mcdcx_flip = pg.scct_versus_mcdcx_flip
-
-        match self.transform_source:
-            case 'SCENE':
-                transform_source = getattr(context.scene, 'ase_settings')
-            case 'CUSTOM':
-                transform_source = self
-            case _:
-                assert False, "Invalid transform source"
-
-        options.scale = transform_source.scale
-        options.forward_axis = transform_source.forward_axis
-        options.up_axis = transform_source.up_axis
-
-        from .dfs import dfs_objects_recursive
-        dfs_objects = list(filter(lambda x: x.obj.type == 'MESH', dfs_objects_recursive(context.selected_objects)))
-
-        mesh_objects = [x.obj for x in dfs_objects]
-        options.materials = get_unique_materials(context.evaluated_depsgraph_get(), mesh_objects)
-        if pg.material_mode == 'MANUAL':
-            options.materials = apply_material_mapping(options.materials, pg)
+        _options_build(options, pg, mesh_objects)
 
         try:
+            assert context.selected_objects is not None
+            dfs_objects = dfs_objects_recursive(context.selected_objects)
             ase = build_ase(context, options, dfs_objects)
 
             # Calculate some statistics about the ASE file to display in the console.
@@ -463,127 +442,156 @@ def apply_material_mapping(materials: list[Material], material_mapping_mixin: Ma
     return ordered_materials + unordered_materials
 
 
-class ASE_OT_export_collection(Operator, ExportHelper, TransformSourceMixin, TransformMixin, MaterialMappingMixin):
+def _draw_materials_panel(
+        layout: UILayout,
+        props: MaterialMappingMixin,
+        populate_operator_idname: str,
+        add_operator_idname: str,
+        remove_operator_idname: str,
+        move_up_operator_idname: str,
+        move_down_operator_idname: str
+        ):
+    materials_header, materials_panel = layout.panel('Materials', default_closed=False)
+    materials_header.label(text='Materials')
+
+    if materials_panel:
+        flow = materials_panel.grid_flow()
+        flow.use_property_split = True
+        flow.use_property_decorate = False
+        flow.prop(props, 'material_mode')
+        if props.material_mode == 'MANUAL':
+            row = flow.row()
+            row.template_list(ASE_UL_material_names.bl_idname, '', props, 'material_mapping', props, 'material_mapping_index')
+            col = row.column(align=True)
+            col.operator(populate_operator_idname, icon='FILE_REFRESH', text='')
+            col.separator()
+            col.operator(add_operator_idname, icon='ADD', text='')
+            col.operator(remove_operator_idname, icon='REMOVE', text='')
+            col.separator()
+            col.operator(move_up_operator_idname, icon='TRIA_UP', text='')
+            col.operator(move_down_operator_idname, icon='TRIA_DOWN', text='')
+
+
+def _draw_vertex_colors_panel(layout: UILayout, props: VertexColorMixin, populate_operator_idname: str):
+    # has_vertex_colors = len(props.vertex_color_attributes) > 0
+    vertex_colors_header, vertex_colors_panel = layout.panel_prop(props, 'should_export_vertex_colors')
+    row = vertex_colors_header.row()
+    row.prop(props, 'should_export_vertex_colors', text='Vertex Colors')
+
+    if vertex_colors_panel:
+        vertex_colors_panel.use_property_split = True
+        vertex_colors_panel.use_property_decorate = False
+        vertex_colors_panel.prop(props, 'vertex_color_mode', text='Mode')
+        if props.vertex_color_mode == 'EXPLICIT':
+            row.use_property_split = False
+            row = vertex_colors_panel.row()
+            split = row.split(factor=0.4, align=True)
+            split.alignment = 'RIGHT'
+            split.label(text='Attribute')
+            row = split.row(align=True)
+            row.operator(populate_operator_idname, icon='FILE_REFRESH', text='')
+            row.prop(props, 'vertex_color_attribute', icon='GROUP_VCOL', text='')
+
+
+def _draw_transform_controls(layout: UILayout, props: TransformMixin):
+        layout.use_property_split = True
+        layout.use_property_decorate = False
+        layout.prop(props, 'scale')
+        layout.prop(props, 'forward_axis')
+        layout.prop(props, 'up_axis')
+
+
+def _draw_transform_panel(layout: UILayout, props: TransformMixin):
+    transform_header, transform_panel = layout.panel('Transform', default_closed=True)
+    transform_header.label(text='Transform')
+
+    if transform_panel:
+        transform_panel.use_property_split = True
+        transform_panel.use_property_decorate = False
+
+        if hasattr(props, 'export_space'):
+            transform_panel.prop(props, 'export_space')
+
+        transform_panel.prop(props, 'transform_source')
+
+        flow = transform_panel.grid_flow()
+        match props.transform_source:
+            case 'SCENE':
+                transform_source = getattr(bpy.context.scene, 'ase_settings')
+                flow.enabled = False
+            case 'CUSTOM':
+                transform_source = props
+            case _:
+                assert False, f'Unknown transform source {props.transform_source}'
+
+        _draw_transform_controls(flow, transform_source)
+
+
+def _draw_advanced_panel(layout: UILayout, props):
+    advanced_header, advanced_panel = layout.panel('Advanced', default_closed=True)
+    advanced_header.label(text='Advanced')
+
+    if advanced_panel:
+        advanced_panel.use_property_split = True
+        advanced_panel.use_property_decorate = False
+        advanced_panel.prop(props, 'object_eval_state')
+
+        fixes_header, fixes_panel = advanced_panel.panel('Fixes', default_closed=True)
+        fixes_header.label(text='Fixes')
+
+        if fixes_panel:
+            fixes_panel.use_property_split = True
+            fixes_panel.use_property_decorate = False
+            fixes_panel.prop(props, 'should_invert_normals')
+            fixes_panel.prop(props, 'scct_versus_mcdcx_flip')
+
+
+class ASE_OT_export_collection(Operator, ExportHelper, AseExportMixin):
     bl_idname = 'io_scene_ase.ase_export_collection'
     bl_label = 'Export collection to ASE'
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
     bl_description = 'Export collection to ASE'
     filename_ext = '.ase'
-    filter_glob: StringProperty(
-        default="*.ase",
-        options={'HIDDEN'},
-        maxlen=255,  # Max internal buffer length, longer would be highlighted.
-    )
-    object_eval_state: EnumProperty(
-        items=object_eval_state_items,
-        name='Data',
-        default='EVALUATED'
-    )
-
+    filter_glob: StringProperty(default="*.ase", options={'HIDDEN'}, maxlen=255)
     collection: StringProperty()
     export_space: EnumProperty(name='Export Space', items=export_space_items, default='INSTANCE')
 
     def draw(self, context):
         layout = self.layout
+        assert layout is not None
 
-        if layout is None:
-            return
-
-        flow = layout.grid_flow()
-        flow.use_property_split = True
-        flow.use_property_decorate = False
-
-        materials_header, materials_panel = layout.panel('Materials', default_closed=True)
-        materials_header.label(text='Materials')
-
-        if materials_panel:
-            flow = layout.grid_flow()
-            flow.use_property_split = True
-            flow.use_property_decorate = False
-            flow.prop(self, 'material_mode')
-            if self.material_mode == 'MANUAL':
-                row = flow.row()
-                row.template_list(ASE_UL_material_names.bl_idname, '', self, 'material_mapping', self, 'material_mapping_index')
-                col = row.column(align=True)
-                col.operator(ASE_OT_export_collection_material_mapping_populate.bl_idname, icon='FILE_REFRESH', text='')
-                col.separator()
-                col.operator(ASE_OT_export_collection_material_mapping_add.bl_idname, icon='ADD', text='')
-                col.operator(ASE_OT_export_collection_material_mapping_remove.bl_idname, icon='REMOVE', text='')
-                col.separator()
-                col.operator(ASE_OT_export_collection_material_mapping_move_up.bl_idname, icon='TRIA_UP', text='')
-                col.operator(ASE_OT_export_collection_material_mapping_move_down.bl_idname, icon='TRIA_DOWN', text='')
-
-        transform_header, transform_panel = layout.panel('Transform', default_closed=True)
-        transform_header.label(text='Transform')
-
-        if transform_panel:
-            transform_panel.use_property_split = True
-            transform_panel.use_property_decorate = False
-            transform_panel.prop(self, 'export_space')
-            transform_panel.prop(self, 'transform_source')
-
-            flow = transform_panel.grid_flow()
-            match self.transform_source:
-                case 'SCENE':
-                    transform_source = getattr(context.scene, 'ase_settings')
-                    flow.enabled = False
-                case 'CUSTOM':
-                    transform_source = self
-                case _:
-                    assert False, f'Unknown transform source {self.transform_source}'
-
-            flow.use_property_split = True
-            flow.use_property_decorate = False
-            flow.prop(transform_source, 'scale')
-            flow.prop(transform_source, 'forward_axis')
-            flow.prop(transform_source, 'up_axis')
-
-        advanced_header, advanced_panel = layout.panel('Advanced', default_closed=True)
-        advanced_header.label(text='Advanced')
-
-        if advanced_panel:
-            advanced_panel.use_property_split = True
-            advanced_panel.use_property_decorate = False
-            advanced_panel.prop(self, 'object_eval_state')
+        _draw_materials_panel(layout, self,
+                              ASE_OT_export_collection_material_mapping_populate.bl_idname,
+                              ASE_OT_export_collection_material_mapping_add.bl_idname,
+                              ASE_OT_export_collection_material_mapping_remove.bl_idname,
+                              ASE_OT_export_collection_material_mapping_move_up.bl_idname,
+                              ASE_OT_export_collection_material_mapping_move_down.bl_idname,
+                              )
+        _draw_transform_panel(layout, self)
+        _draw_vertex_colors_panel(layout, self, ASE_OT_export_collection_vertex_color_attributes_populate.bl_idname)
+        _draw_advanced_panel(layout, self)
 
     def execute(self, context):
         collection = bpy.data.collections.get(self.collection)
 
-        options = ASEBuildOptions()
-        options.object_eval_state = self.object_eval_state
-
-        match self.transform_source:
-            case 'SCENE':
-                transform_source = getattr(context.scene, 'ase_settings')
-            case 'CUSTOM':
-                transform_source = self
-            case _:
-                assert False, f'Unknown transform source {self.transform_source}'
-
-        options.scale = transform_source.scale
-        options.forward_axis = transform_source.forward_axis
-        options.up_axis = transform_source.up_axis
-        
-        # Get SCCT Versus MCDCX flip option from scene
-        pg = getattr(context.scene, 'ase_export')
-        options.scct_versus_mcdcx_flip = pg.scct_versus_mcdcx_flip
-
-        match self.export_space:
-            case 'WORLD':
-                options.transform = Matrix.Identity(4)
-            case 'INSTANCE':
-                options.transform = Matrix.Translation(-Vector(collection.instance_offset))
-
-        from .dfs import dfs_collection_objects
+        if collection is None:
+            return {'CANCELLED'}
 
         dfs_objects = list(filter(lambda x: x.obj.type == 'MESH', dfs_collection_objects(collection)))
 
         # Get all the materials used by the objects in the collection.
         mesh_objects = [x.obj for x in dfs_objects]
-        options.materials = get_unique_materials(context.evaluated_depsgraph_get(), mesh_objects)
-        if self.material_mode == 'MANUAL':
-            options.materials = apply_material_mapping(options.materials, self)
+
+        options = ASEBuildOptions()
+        _options_build(options, self, mesh_objects)
+
+        # Only the collection exporter has the export_space option.
+        match self.export_space:
+            case 'WORLD':
+                options.transform = Matrix.Identity(4)
+            case 'INSTANCE':
+                options.transform = Matrix.Translation(-Vector(collection.instance_offset))
 
         try:
             ase = build_ase(context, options, dfs_objects)
@@ -613,19 +621,15 @@ class ASE_PT_export_scene_settings(Panel):
     
     def draw(self, context: Context):
         layout = self.layout
-
-        transform_source = getattr(context.scene, 'ase_settings')
+        assert layout is not None
 
         transform_header, transform_panel = layout.panel('Transform', default_closed=True)
         transform_header.label(text='Transform')
 
         if transform_panel:
+            transform_source = getattr(context.scene, 'ase_settings')
             flow = transform_panel.grid_flow()
-            flow.use_property_split = True
-            flow.use_property_decorate = False
-            flow.prop(transform_source, 'scale')
-            flow.prop(transform_source, 'forward_axis')
-            flow.prop(transform_source, 'up_axis')
+            _draw_transform_controls(flow, transform_source)
 
 
 
@@ -653,6 +657,9 @@ classes = (
     ASE_OT_export_collection_material_mapping_move_down,
     ASE_OT_export_collection_material_mapping_move_up,
     ASE_OT_export_collection_material_mapping_populate,
+
+    ASE_OT_export_scene_vertex_color_attributes_populate,
+    ASE_OT_export_collection_vertex_color_attributes_populate,
 
     ASE_PT_export_scene_settings,
     ASE_FH_export,
