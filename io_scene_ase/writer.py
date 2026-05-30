@@ -49,6 +49,10 @@ class ASECommand(object):
         return child
 
 
+def write_ase(filepath: str, ase: ASE):
+    ASEWriter().write(filepath, ase)
+
+
 class ASEWriter(object):
 
     def __init__(self):
@@ -198,7 +202,7 @@ class ASEWriter(object):
 
         return root
 
-    def write(self, filepath, ase):
+    def write(self, filepath: str, ase: ASE):
         self.indent = 0
         with open(filepath, 'w') as self.fp:
             ase_file = self.build_ase_tree(ase)

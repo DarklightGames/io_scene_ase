@@ -55,17 +55,19 @@ material_mode_items = (
 )
 
 
-class MaterialModeMixin:
+class ASE_PG_key_value(PropertyGroup):
+    key: StringProperty()
+    value: StringProperty()
+
+
+class MaterialMappingMixin:
     material_mode: EnumProperty(name='Material Mode', items=material_mode_items, default='AUTOMATIC', description='The material mode to use for the exported geometry')
+    material_mapping: CollectionProperty(name='Materials', type=ASE_PG_key_value)
+    material_mapping_index: IntProperty(name='Index', default=0)
 
 
 class ASE_PG_material(PropertyGroup):
     material: PointerProperty(type=Material)
-
-
-class ASE_PG_key_value(PropertyGroup):
-    key: StringProperty()
-    value: StringProperty()
 
 
 def get_vertex_color_attributes_from_objects(objects: Iterable[Object]) -> Set[str]:
@@ -92,9 +94,7 @@ vertex_color_mode_items = (
 )
 
 
-class ASE_PG_export(PropertyGroup, TransformSourceMixin, TransformMixin):
-    material_list: CollectionProperty(name='Materials', type=ASE_PG_material)
-    material_list_index: IntProperty(name='Index', default=0)
+class ASE_PG_export(PropertyGroup, TransformSourceMixin, TransformMixin, MaterialMappingMixin):
     should_export_vertex_colors: BoolProperty(name='Export Vertex Colors', default=True)
     vertex_color_mode: EnumProperty(name='Vertex Color Mode', items=vertex_color_mode_items)
     has_vertex_colors: BoolProperty(name='Has Vertex Colors', default=False, options={'HIDDEN'})

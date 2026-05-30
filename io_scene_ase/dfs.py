@@ -84,7 +84,7 @@ def _dfs_collection_objects_recursive(
         collection: Collection,
         instance_objects: Optional[List[Object]] = None,
         matrix_world: Matrix = Matrix.Identity(4),
-        visited: Optional[Set[Object]]=None
+        visited: Set[tuple[Object, Object | None]] | None=None
 ) -> Iterable[DfsObject]:
     """
     Depth-first search of objects in a collection, including recursing into instances.
@@ -143,3 +143,30 @@ def dfs_view_layer_objects(view_layer: ViewLayer) -> Iterable[DfsObject]:
         yield from _dfs_collection_objects_recursive(layer_collection.collection, visited=visited)
 
     yield from layer_collection_objects_recursive(view_layer.layer_collection)
+
+
+def dfs_objects_recursive(objects: Iterable[Object]) -> Iterable[DfsObject]:
+    """
+    Depth-first iterator over the provided objects, including recusing into instances.
+    """
+    visited: set[tuple[Object, Object | None]] = set()
+    for obj in objects:
+        visited_pair = (obj, None)
+        if visited_pair in visited:
+            continue
+        # If this an instance, we need to recurse into it.
+        if obj.instance_collection is not None:
+            # Calculate the instance transform.
+            instance_offset_matrix = Matrix.Translation(-obj.instance_collection.instance_offset)
+            # Recurse into the instance collection.
+            yield from _dfs_collection_objects_recursive(
+                obj.instance_collection,
+                [obj],
+                obj.matrix_world @ instance_offset_matrix,
+                visited
+                )
+        else:
+            # Object is not an instance, yield it.
+            yield DfsObject(obj, [], obj.matrix_world)
+            visited.add(visited_pair)
+    return visited
