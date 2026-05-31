@@ -38,7 +38,7 @@ def _get_collection_from_context(context: Context) -> Optional[Collection]:
         return context.collection
 
 
-def _get_collection_export_operator_from_context(context: Context) -> ASE_OT_export_collection | None:
+def _get_collection_export_operator_from_context(context: Context) -> 'ASE_OT_export_collection | None':
     collection = _get_collection_from_context(context)
     if collection is None or collection.active_exporter_index is None:
         return None
