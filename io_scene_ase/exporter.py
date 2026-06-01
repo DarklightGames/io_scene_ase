@@ -316,7 +316,7 @@ def _get_selected_mesh_objects(context: Context):
     return [x.obj for x in dfs_objects]
 
 
-def _options_build(options, props: AseExportMixin, mesh_objects: Iterable[Object]):
+def _options_build(options: ASEBuildOptions, props: AseExportMixin, mesh_objects: Iterable[Object]):
     options.object_eval_state = props.object_eval_state
     options.should_export_vertex_colors = props.should_export_vertex_colors
     options.vertex_color_mode = props.vertex_color_mode
@@ -339,7 +339,8 @@ def _options_build(options, props: AseExportMixin, mesh_objects: Iterable[Object
 
     options.materials = _get_unique_materials(bpy.context.evaluated_depsgraph_get(), mesh_objects)
     if props.material_mode == 'MANUAL':
-        options.materials = apply_material_mapping(options.materials, props)
+        options.materials = _apply_material_mapping(options.materials, props)
+        options.material_mapping = {x.key: x.value for x in props.material_mapping}
 
 
 class ASE_OT_export(Operator, ExportHelper):
@@ -422,10 +423,10 @@ export_space_items = [
     ('INSTANCE', 'Instance Space', 'Export the collection in instance space'),
 ]
 
-def apply_material_mapping(materials: list[Material], material_mapping_mixin: MaterialMappingMixin):
+def _apply_material_mapping(materials: list[Material], material_mapping_mixin: MaterialMappingMixin):
     # Sort the materials based on the order in the material order list, keeping in mind that the material order list
     # may not contain all the materials used by the objects in the collection.
-    material_names = [x.key for x in material_mapping_mixin.material_mapping]
+    material_names = {x.key for x in material_mapping_mixin.material_mapping}
     material_names_map = {x: i for i, x in enumerate(material_names)}
 
     # Split the list of materials into two lists: one for materials that appear in the material order list, and one
