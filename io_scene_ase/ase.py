@@ -1,6 +1,4 @@
-from typing import Optional, List
-
-from bpy.types import Material
+from typing import List
 
 
 class ASEFace(object):

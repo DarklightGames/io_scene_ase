@@ -49,6 +49,8 @@ def get_vector_from_axis_identifier(axis_identifier: str) -> Vector:
             return Vector((0.0, -1.0, 0.0))
         case '-Z':
             return Vector((0.0, 0.0, -1.0))
+        case _:
+            assert False, f"Invalid axis identifier '{axis_identifier}'"
 
 
 def get_coordinate_system_transform(forward_axis: str = 'X', up_axis: str = 'Z') -> Matrix:
@@ -65,7 +67,10 @@ def get_coordinate_system_transform(forward_axis: str = 'X', up_axis: str = 'Z')
 
 def build_ase(context: Context, options: ASEBuildOptions, dfs_objects: Iterable[DfsObject]) -> ASE:
     ase = ASE()
-    ase.materials = [x.name if x is not None else 'None' for x in options.materials]
+    if options.materials is None:
+        ase.materials = []
+    else:
+        ase.materials = [x.name if x is not None else 'None' for x in options.materials]
 
     # If no materials are assigned to the object, add an empty material.
     # This is necessary for the ASE format to be compatible with the UT2K4 importer.
@@ -143,6 +148,8 @@ def build_ase(context: Context, options: ASEBuildOptions, dfs_objects: Iterable[
                     del bm
                     mesh_object = bpy.data.objects.new('', mesh_data)
                     mesh_object.matrix_world = matrix_world
+                case _:
+                    assert False, f"Invalid object_eval_state '{options.object_eval_state}'"
 
             vertex_transform = (Matrix.Rotation(math.pi, 4, 'Z') @
                                 Matrix.Scale(options.scale, 4) @

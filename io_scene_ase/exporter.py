@@ -1,6 +1,5 @@
 from abc import ABCMeta, abstractmethod
-from collections import abc
-from typing import Iterable, List, Literal, cast, Optional
+from typing import Iterable, List, cast, Optional
 
 import bpy
 from bpy_extras.io_utils import ExportHelper

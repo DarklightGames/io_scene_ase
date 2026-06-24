@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from .ase import ASE
 
 
@@ -13,10 +15,10 @@ class ASEFile(object):
 
 class ASECommand(object):
     def __init__(self, name):
-        self.name = name
+        self.name: str = name
         self.data = []
         self.children = []
-        self.sub_commands = []
+        self.sub_commands: list[ASECommand] = []
 
     @property
     def has_data(self):
@@ -50,13 +52,13 @@ class ASECommand(object):
 
 
 def write_ase(filepath: str, ase: ASE):
-    ASEWriter().write(filepath, ase)
+    ASEWriter(filepath).write(ase)
 
 
 class ASEWriter(object):
 
-    def __init__(self):
-        self.fp = None
+    def __init__(self, file: int | str | Path):
+        self.fp = open(file, 'w')
         self.indent = 0
 
     def write_datum(self, datum):
@@ -80,7 +82,7 @@ class ASEWriter(object):
                 self.fp.write(' ')
                 self.write_datum(datum)
 
-    def write_command(self, command):
+    def write_command(self, command: ASECommand):
         self.fp.write('\t' * self.indent)
         self.fp.write(f'*{command.name}')
         if command.has_data:
@@ -202,8 +204,7 @@ class ASEWriter(object):
 
         return root
 
-    def write(self, filepath: str, ase: ASE):
+    def write(self, ase: ASE):
         self.indent = 0
-        with open(filepath, 'w') as self.fp:
-            ase_file = self.build_ase_tree(ase)
-            self.write_file(ase_file)
+        ase_file = self.build_ase_tree(ase)
+        self.write_file(ase_file)

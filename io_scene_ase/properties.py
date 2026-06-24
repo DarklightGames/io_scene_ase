@@ -1,7 +1,6 @@
 from typing import Iterable, Set
 from bpy.types import Mesh, PropertyGroup, Context, Material, Object
 from bpy.props import CollectionProperty, IntProperty, BoolProperty, EnumProperty, FloatProperty, StringProperty, PointerProperty
-from .dfs import dfs_objects_recursive
 
 
 axis_identifiers = ('X', 'Y', 'Z', '-X', '-Y', '-Z')
