@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Iterable
 
 from .ase import ASE
 
@@ -16,8 +17,8 @@ class ASEFile(object):
 class ASECommand(object):
     def __init__(self, name):
         self.name: str = name
-        self.data = []
-        self.children = []
+        self.data: list[Datum] = []
+        self.children: list[ASECommand] = []
         self.sub_commands: list[ASECommand] = []
 
     @property
@@ -32,20 +33,20 @@ class ASECommand(object):
     def has_sub_commands(self):
         return len(self.sub_commands) > 0
 
-    def push_datum(self, datum):
+    def push_datum(self, datum: Datum):
         self.data.append(datum)
         return self
 
-    def push_data(self, data):
+    def push_data(self, data: Iterable[Datum]):
         self.data += data
         return self
 
-    def push_sub_command(self, name):
+    def push_sub_command(self, name: str):
         command = ASECommand(name)
         self.sub_commands.append(command)
         return command
 
-    def push_child(self, name):
+    def push_child(self, name: str):
         child = ASECommand(name)
         self.children.append(child)
         return child
@@ -55,13 +56,17 @@ def write_ase(filepath: str, ase: ASE):
     ASEWriter(filepath).write(ase)
 
 
+# Type alias for datum.
+type Datum = str | int | float | dict[str, Datum]
+
+
 class ASEWriter(object):
 
     def __init__(self, file: int | str | Path):
         self.fp = open(file, 'w')
         self.indent = 0
 
-    def write_datum(self, datum):
+    def write_datum(self, datum: Datum):
         if type(datum) is str:
             self.fp.write(f'"{datum}"')
         elif type(datum) is int:
@@ -75,7 +80,7 @@ class ASEWriter(object):
                 self.fp.write(f'{key}: ')
                 self.write_datum(value)
 
-    def write_sub_command(self, sub_command):
+    def write_sub_command(self, sub_command: ASECommand):
         self.fp.write(f' *{sub_command.name}')
         if sub_command.has_data:
             for datum in sub_command.data:

@@ -54,4 +54,4 @@ class ASEGeometryObject(object):
 class ASE(object):
     def __init__(self):
         self.materials: List[str] = []
-        self.geometry_objects = []
+        self.geometry_objects: List[ASEGeometryObject] = []
