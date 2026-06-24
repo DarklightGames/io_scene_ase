@@ -57,6 +57,7 @@ def get_coordinate_system_transform(forward_axis: str = 'X', up_axis: str = 'Z')
     forward = get_vector_from_axis_identifier(forward_axis)
     up = get_vector_from_axis_identifier(up_axis)
     left = up.cross(forward)
+    assert isinstance(left, Vector)
     return Matrix((
         (forward.x, forward.y, forward.z, 0.0),
         (left.x, left.y, left.z, 0.0),
