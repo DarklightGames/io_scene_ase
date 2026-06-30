@@ -4,6 +4,10 @@ from typing import Iterable
 from .ase import ASE
 
 
+# Type alias for datum.
+type Datum = str | int | float | dict[str, Datum]
+
+
 class ASEFile(object):
     def __init__(self):
         self.commands = []
@@ -54,10 +58,6 @@ class ASECommand(object):
 
 def write_ase(filepath: str, ase: ASE):
     ASEWriter(filepath).write(ase)
-
-
-# Type alias for datum.
-type Datum = str | int | float | dict[str, Datum]
 
 
 class ASEWriter(object):
