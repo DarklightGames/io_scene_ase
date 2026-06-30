@@ -225,7 +225,7 @@ class ASE_OT_export_collection_material_mapping_move_down(AseExportSourceCollect
     bl_idname = 'ase_export.collection_material_mapping_move_down'
 
 
-class ASE_OT_export_scene_material_mapping_move_down(AseExportSourceCollection, MaterialMappingMoveDownOperator):
+class ASE_OT_export_scene_material_mapping_move_down(AseExportSourceScene, MaterialMappingMoveDownOperator):
     bl_idname = 'ase_export.scene_material_mapping_move_down'
 
 
