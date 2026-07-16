@@ -2,6 +2,14 @@
 
 This is a Blender addon allowing you to export static meshes to the now-defunct ASE (ASCII Scene Export) format used in legacy programs like Unreal Tournament 2004.
 
+# Important Notice
+
+**This add-on is looking for a new maintainer!**
+
+Please contact me at github.com.catty550@passmail.net if you want to take over maintenance of this add-on.
+
+In the meantime, I will not be adding any new features beyond simple compatibility fixes to ensure it works with the latest Blender versions.
+
 # Installation
 Install the latest version from [Blender Extensions](https://extensions.blender.org/add-ons/io-scene-ase/).
 
